@@ -7,9 +7,7 @@ import {
   ArrowLeft, 
   Download, 
   Calendar,
-  AlertTriangle,
   Info,
-  CheckCircle2,
   Accessibility,
   Eye,
   Layout,
@@ -19,7 +17,11 @@ import {
   Share2,
   Loader2,
   Flame,
-  Printer
+  Printer,
+  Crown,
+  Quote,
+  Lightbulb,
+  Check
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { HeatmapCanvas } from './HeatmapCanvas';
@@ -33,8 +35,17 @@ interface Annotation {
   type: 'accessibility' | 'usability' | 'consistency' | 'visual' | 'marketing';
   severity: 'critical' | 'minor';
   title: string;
-  description: string;
-  fix: string;
+  current: string;
+  suggested: string;
+  impact: string;
+}
+
+interface InfluencerReview {
+  persona: string;
+  overallImpression: string;
+  strategicFeedback: string[];
+  philosophicalAdvice: string;
+  actionableTips: string[];
 }
 
 interface ReportPageProps {
@@ -44,6 +55,7 @@ interface ReportPageProps {
     annotations: Annotation[];
     designType: string;
     analysisMode?: string;
+    influencerReview?: InfluencerReview;
   };
 }
 
@@ -88,7 +100,8 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
             screenshot: data.screenshot,
             annotations: annotations,
             designType: data.designType,
-            analysisMode: data.analysisMode
+            analysisMode: data.analysisMode,
+            influencerReview: data.influencerReview
           })
         }
       );
@@ -122,10 +135,6 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
     minor: annotations.filter(a => a.severity === 'minor').length,
   };
 
-  const getOverallScore = () => {
-    return 100;
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden pb-12">
       {/* Navigation */}
@@ -146,7 +155,7 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
             </Button>
             <Button size="sm" onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white">
               <Printer className="w-4 h-4 mr-2" />
-              Print 2-Page PDF
+              Print Report
             </Button>
           </div>
         </div>
@@ -201,17 +210,19 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
                 )}
 
                 {/* Annotation Pins */}
-                {annotations.map((ann) => (
-                  <div
-                    key={ann.id}
-                    className={`absolute w-7 h-7 rounded-full border-2 border-white shadow-2xl flex items-center justify-center transition-all ${
-                      ann.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'
-                    }`}
-                    style={{ left: `${ann.x}%`, top: `${ann.y}%`, transform: 'translate(-50%, -50%)' }}
-                  >
-                    <span className="text-[11px] text-white font-black">{ann.id}</span>
-                  </div>
-                ))}
+                {annotations.map((ann) => {
+                  return (
+                    <div
+                      key={ann.id}
+                      className={`absolute w-7 h-7 rounded-full border-2 border-white shadow-2xl flex items-center justify-center transition-all ${
+                        ann.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'
+                      }`}
+                      style={{ left: `${ann.x}%`, top: `${ann.y}%`, transform: 'translate(-50%, -50%)' }}
+                    >
+                      <span className="text-[11px] text-white font-black">{ann.id}</span>
+                    </div>
+                  );
+                })}
               </div>
               
               <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/10 shadow-lg">
@@ -249,8 +260,73 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
           </div>
         </section>
 
-        {/* PAGE 2: DETAILED FINDINGS & SUGGESTIONS */}
-        <section className="bg-white p-10 rounded-3xl shadow-2xl border border-slate-200 print:shadow-none print:border-none print:rounded-none print:p-12 print:h-[297mm] flex flex-col">
+        {/* PAGE 2: INFLUENCER REVIEW (CONDITIONAL) */}
+        {data.influencerReview && (
+          <section className="bg-white p-10 rounded-3xl shadow-2xl border border-slate-200 print:shadow-none print:border-none print:rounded-none print:p-12 print:h-[297mm] flex flex-col page-break">
+             <div className="flex items-center justify-between mb-10 border-b border-slate-100 pb-8">
+               <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center text-white shadow-md">
+                   <Crown className="w-5 h-5" />
+                 </div>
+                 <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Strategic Expert Review</h2>
+               </div>
+               <Badge variant="outline" className="px-3 py-1 font-black text-[10px] uppercase tracking-widest border-slate-200 text-slate-500">
+                 By {data.influencerReview.persona}
+               </Badge>
+             </div>
+
+             <div className="flex-1 space-y-8 bg-slate-50/50 p-8 rounded-2xl border border-slate-100">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative">
+                   <Quote className="w-10 h-10 text-slate-100 absolute top-4 left-4 -z-0" />
+                   <p className="text-lg font-medium text-slate-700 italic leading-relaxed relative z-10 text-center px-8">
+                      "{data.influencerReview.overallImpression}"
+                   </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 border-b border-slate-200 pb-2">Strategic Feedback</h3>
+                      {data.influencerReview.strategicFeedback.map((point, i) => (
+                        <div key={i} className="flex gap-3">
+                           <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                              <span className="text-[10px] font-black text-primary">{i + 1}</span>
+                           </div>
+                           <p className="text-sm text-slate-700">{point}</p>
+                        </div>
+                      ))}
+                   </div>
+
+                   <div className="space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 border-b border-slate-200 pb-2">Actionable Steps</h3>
+                      {data.influencerReview.actionableTips.map((tip, i) => (
+                         <div key={i} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                            <Check className="w-4 h-4 text-green-600 shrink-0" />
+                            <p className="text-xs font-bold text-slate-800">{tip}</p>
+                         </div>
+                      ))}
+                   </div>
+                </div>
+
+                <div className="p-6 bg-slate-900 text-white rounded-xl shadow-lg mt-4">
+                   <div className="flex items-center gap-2 mb-3">
+                      <Lightbulb className="w-5 h-5 text-yellow-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Core Philosophical Principle</span>
+                   </div>
+                   <p className="text-base font-medium leading-relaxed border-l-2 border-yellow-400 pl-4">
+                      {data.influencerReview.philosophicalAdvice}
+                   </p>
+                </div>
+             </div>
+
+             <div className="mt-auto pt-8 border-t border-slate-100 flex justify-between items-center text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+               <div>Design Snapper Pro • Ver 2.5.0 • Page {data.influencerReview ? '02' : '02'}/03</div>
+               <div className="text-slate-900 font-black">Exclusive Content</div>
+             </div>
+          </section>
+        )}
+
+        {/* PAGE 3: DETAILED FINDINGS & SUGGESTIONS */}
+        <section className="bg-white p-10 rounded-3xl shadow-2xl border border-slate-200 print:shadow-none print:border-none print:rounded-none print:p-12 print:h-[297mm] flex flex-col page-break">
           
           <div className="flex items-center justify-between mb-10 border-b border-slate-100 pb-8">
             <div className="flex items-center gap-3">
@@ -266,34 +342,46 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
 
           <div className="flex-1 space-y-6">
             <div className="grid grid-cols-1 gap-6">
-              {annotations.map((ann) => (
-                <div key={ann.id} className="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex gap-6 print:bg-white print:border-slate-200 transition-all hover:bg-slate-100/50">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                    ann.severity === 'critical' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
-                  }`}>
-                    <span className="text-sm font-black">{ann.id}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h4 className="text-base font-bold text-slate-900 truncate leading-tight">{ann.title}</h4>
-                      <div className="shrink-0 opacity-50">{getTypeIcon(ann.type)}</div>
-                      <Badge variant={ann.severity === 'critical' ? 'destructive' : 'secondary'} className="text-[8px] h-4 uppercase font-black px-1.5 ml-auto tracking-tighter">
-                        {ann.severity}
-                      </Badge>
+              {annotations.map((ann) => {
+                return (
+                  <div key={ann.id} className="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex gap-6 print:bg-white print:border-slate-200 transition-all hover:bg-slate-100/50">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                      ann.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'
+                    } text-white`}>
+                      <span className="text-sm font-black">{ann.id}</span>
                     </div>
-                    <p className="text-xs text-slate-500 leading-relaxed mb-4">{ann.description}</p>
-                    
-                    {/* Explicit Suggestion Box */}
-                    <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="w-3.5 h-3.5 text-green-600" />
-                        <p className="text-[10px] font-black text-green-700 uppercase tracking-widest leading-none">Expert Suggestion</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-base font-bold text-slate-900 truncate leading-tight">{ann.title}</h4>
+                        <div className="shrink-0 opacity-50">{getTypeIcon(ann.type)}</div>
+                        <Badge variant={ann.severity === 'critical' ? 'destructive' : 'secondary'} className="text-[8px] h-4 uppercase font-black px-1.5 ml-auto tracking-tighter">
+                          {ann.severity}
+                        </Badge>
                       </div>
-                      <p className="text-[13px] font-bold text-slate-800 leading-snug">{ann.fix}</p>
+                      
+                      <div className="space-y-3 mb-4">
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Observation</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">{ann.current}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-1">Impact</p>
+                          <p className="text-[11px] text-slate-500 font-medium italic">{ann.impact}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Explicit Suggestion Box */}
+                      <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="w-3.5 h-3.5 text-green-600" />
+                          <p className="text-[10px] font-black text-green-700 uppercase tracking-widest leading-none">Suggested Fix</p>
+                        </div>
+                        <p className="text-[13px] font-bold text-slate-800 leading-snug">{ann.suggested}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               
               {annotations.length === 0 && (
                 <div className="py-20 text-center border-2 border-dashed border-slate-100 rounded-3xl">
@@ -304,9 +392,9 @@ export function ReportPage({ onNavigate, data }: ReportPageProps) {
             </div>
           </div>
 
-          {/* Footer Info Page 2 */}
+          {/* Footer Info Page 3 */}
           <div className="mt-auto pt-8 border-t border-slate-100 flex justify-between items-center text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">
-            <div>Design Snapper Pro • Ver 2.5.0 • Page 02/02</div>
+            <div>Design Snapper Pro • Ver 2.5.0 • Page {data.influencerReview ? '03' : '02'}/{data.influencerReview ? '03' : '02'}</div>
             <div className="text-slate-900 font-black">Audit complete</div>
           </div>
         </section>

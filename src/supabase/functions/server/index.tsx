@@ -2,7 +2,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { jsonrepair } from "npm:jsonrepair";
-import * as kv from "./kv_store.tsx";
+import * as kv from "./kv_utils.ts";
 
 const app = new Hono();
 
@@ -18,33 +18,91 @@ app.use(
   }),
 );
 
-// Improved JSON extraction and parsing using jsonrepair
+const PERSONAS: Record<string, { name: string; role: string; tone: string; prompt: string }> = {
+  'chris-do': {
+    name: 'Chris Do',
+    role: 'Business Strategy & Branding Expert',
+    tone: 'Direct, business-focused, strategic',
+    prompt: `You are Chris Do, a world-renowned designer and business strategist. 
+    Your philosophy: "Sell the problem you solve, not the service you provide." 
+    Focus on: Value proposition, business alignment, pricing psychology, and clarity.
+    Critique this design from a business impact perspective. Is it selling? Is the value clear?
+    Be bold, direct, and slightly provocative.`
+  },
+  'don-norman': {
+    name: 'Don Norman',
+    role: 'The Grandfather of UX',
+    tone: 'Academic, authoritative, user-centric, critical',
+    prompt: `You are Don Norman, the cognitive scientist and author of "The Design of Everyday Things."
+    Your philosophy: "It is not the user's fault. It is bad design."
+    Focus on: Affordances (is it obvious what can be done?), Signifiers (marks that tell you where the action is), Mappings (relationship between controls and effects), Feedback, and Conceptual Models.
+    Critique this design based on fundamental usability principles. Is it intuitive? If a user makes a mistake, did the design mislead them?`
+  },
+  'ansh-mehra': {
+    name: 'Ansh Mehra',
+    role: 'UX Storyteller & Modern UI Expert',
+    tone: 'Energetic, practical, modern, narrative-driven',
+    prompt: `You are Ansh Mehra, a prominent UX educator and storyteller.
+    Your philosophy: "Design is not just pixels; it's about the story you tell."
+    Focus on: Visual hierarchy, storytelling, emotional connection, and modern UI polish (glassmorphism, clean typography, "wow" factor).
+    Critique this design's ability to engage the user emotionally. Is the narrative flow clear? Does it look "premium" and portfolio-ready?`
+  }
+};
+
 function safeParseAIResponse(text: string) {
   try {
     if (!text) return null;
-    
-    // 1. Extract potential JSON content
     const jsonStart = text.indexOf('{');
     const jsonEnd = text.lastIndexOf('}') + 1;
     if (jsonStart === -1 || jsonEnd === 0) return null;
-    
     const jsonString = text.slice(jsonStart, jsonEnd);
     
-    // 2. Attempt standard parse first for speed
+    let parsed;
     try {
-      return JSON.parse(jsonString);
+      parsed = JSON.parse(jsonString);
     } catch (e) {
-      // 3. Use jsonrepair for malformed AI output
       try {
         const repaired = jsonrepair(jsonString);
-        return JSON.parse(repaired);
+        parsed = JSON.parse(repaired);
       } catch (repairError) {
         console.error("JSON repair failed:", repairError);
-        // Fallback: log a snippet for debugging
-        console.log("Context near error:", jsonString.slice(0, 100) + "..." + jsonString.slice(-100));
         return null;
       }
     }
+
+    // Normalization Step
+    if (parsed) {
+      const rawAnnotations = parsed.annotations || parsed.Annotations || parsed.issues || parsed.Issues || parsed.results || [];
+      if (Array.isArray(rawAnnotations)) {
+        parsed.annotations = rawAnnotations.map((ann: any, idx: number) => ({
+          id: ann.id || ann.ID || (idx + 1),
+          x: Number(ann.x ?? ann.X ?? 0),
+          y: Number(ann.y ?? ann.Y ?? 0),
+          category: String(ann.category || ann.type || 'visual').toLowerCase().trim(),
+          tag: String(ann.tag || 'Observation'),
+          severity: String(ann.severity || ann.Severity || 'minor').toLowerCase().trim(),
+          title: ann.title || ann.Title || 'Observation',
+          current: ann.current || ann.description || ann.Description || 'Current state',
+          suggested: ann.suggested || ann.fix || ann.Fix || 'Suggested fix',
+          impact: ann.impact || 'Improves user experience.'
+        }));
+      }
+      
+      parsed.designType = parsed.designType || parsed.DesignType || 'Web App';
+      
+      // Normalize Influencer Review if present
+      if (parsed.influencerReview) {
+        parsed.influencerReview = {
+          persona: parsed.influencerReview.persona || 'Unknown',
+          overallImpression: parsed.influencerReview.overallImpression || '',
+          strategicFeedback: Array.isArray(parsed.influencerReview.strategicFeedback) ? parsed.influencerReview.strategicFeedback : [],
+          philosophicalAdvice: parsed.influencerReview.philosophicalAdvice || '',
+          actionableTips: Array.isArray(parsed.influencerReview.actionableTips) ? parsed.influencerReview.actionableTips : []
+        };
+      }
+    }
+
+    return parsed;
   } catch (err) {
     console.error("Critical parsing error:", err);
     return null;
@@ -78,145 +136,308 @@ app.get("/make-server-cdc57b20/share/:id", async (c) => {
 
 app.post("/make-server-cdc57b20/analyze", async (c) => {
   try {
-    const { image, context } = await c.req.json();
+    const { image, context, mode, influencerPersona, testCriteria } = await c.req.json();
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+
+    if (!anthropicKey) {
+      console.error("Missing ANTHROPIC_API_KEY environment variable");
+      return c.json({ error: "Server configuration error: Anthropic API key is missing. Please add it to the Supabase secrets." }, 500);
+    }
+
+    if (!image) {
+      return c.json({ error: "No image provided" }, 400);
+    }
 
     const base64Data = image.split(',')[1] || image;
     const mediaType = image.split(';')[0].split(':')[1] || 'image/png';
 
-    const anthropicModels = [
-      "claude-3-5-sonnet-latest",
-      "claude-3-5-sonnet-20240620",
-      "claude-3-haiku-20240307"
-    ];
+    // Construct the System Prompt
+    let systemPrompt = `You are the Design Snapper AI, a world-class Design & Contrast Auditor. 
+Your mission is to perform a high-precision audit on the provided design asset.
 
+${testCriteria ? `
+AUDIT FOCUS (The user has selected specific criteria to test against):
+${testCriteria.visual?.length ? `- Visual UI Design: ${testCriteria.visual.join(', ')}` : ''}
+${testCriteria.business?.length ? `- Business Impact: ${testCriteria.business.join(', ')}` : ''}
+${testCriteria.heuristic?.length ? `- Heuristic Evaluation: ${testCriteria.heuristic.join(', ')}` : ''}
+
+You MUST prioritize your findings based on these selected categories and the individual principles mentioned.
+` : `
+AUDIT SCOPE:
+You must identify 6-10 specific issues across these exact categories:
+1. CONTRAST: WCAG 2.1 compliance, text legibility, color-blind accessibility.
+2. USABILITY: Information architecture, interaction patterns, cognitive load.
+3. CONSISTENCY: UI patterns, spacing systems, radius harmony, icon stroke weights.
+4. VISUAL: Balance, white space, color theory, alignment precision, visual hierarchy.
+5. CONVERSION: Sales triggers, value proposition clarity, CTA prominence.
+`}
+
+CONSTRAINTS:
+- Identify exactly 6-10 issues.
+- Severity must be "critical" (major failure/accessibility block) or "minor" (visual polish).
+
+SPATIAL CALIBRATION (ULTRA-PRECISION REQUIRED):
+- Use a 100x100 coordinate system where (0,0) is TOP-LEFT and (100,100) is BOTTOM-RIGHT.
+- Provide coordinates as DECIMALS (e.g., "x": 42.58, "y": 18.21) for maximum precision.
+- THE COORDINATES MUST BE THE EXACT CENTER OF THE ELEMENT OR PIXEL-FAILURE YOU ARE DISCUSSING.
+- Center markers directly on the specific UI element (e.g., the center of a button, the middle of a text line).
+- For spacing issues, place the marker in the center of the gap.
+- Your (x,y) coordinates map directly to percentage offsets from the top-left edge of the image file.
+
+LANGUAGE & TONE:
+- Be BLUNT, PROFESSIONAL, and DIRECT. Use expert terminology.
+- "current": Technical description of the visual failure.
+- "suggested": Precise expert fix with actionable values.
+`;
+
+    // Add Influencer Logic if requested
+    let influencerPromptSection = "";
+    if (mode === 'with-influencer' && influencerPersona && typeof influencerPersona === 'string' && PERSONAS[influencerPersona]) {
+      const persona = PERSONAS[influencerPersona];
+      influencerPromptSection = `
+      
+INFLUENCER MODE ACTIVATED:
+${persona.prompt}
+
+You must ALSO provide a structured review from the perspective of ${persona.name}.
+Channel their voice, style, and specific focus areas.
+`;
+    }
+
+    systemPrompt += influencerPromptSection;
+
+    systemPrompt += `
+
+OUTPUT FORMAT (Strict JSON):
+{
+  "designType": "Web App" | "Mobile" | "Poster" | "Marketing",
+  "annotations": [
+    {
+      "id": number,
+      "x": number,
+      "y": number,
+      "category": "visual" | "business" | "heuristic" | "contrast",
+      "tag": "Hierarchy" | "Consistency" | "Spacing" | "Contrast" | "Balance" | "Conversion" | "Clarity" | "Trust" | "Efficiency" | "Differentiation" | "Visibility" | "Prevention" | "Control" | "Recognition" | "Feedback",
+      "severity": "critical" | "minor",
+      "title": "A statement of the issue.",
+      "current": "Max 8 words description of the specific visual error.",
+      "suggested": "Max 8 words specific technical solution (e.g., 'Change to #222222').",
+      "impact": "Direct statement of the strategic benefit."
+    }
+  ]${mode === 'with-influencer' ? `,
+  "influencerReview": {
+    "persona": "${(influencerPersona && typeof influencerPersona === 'string' && PERSONAS[influencerPersona]) ? PERSONAS[influencerPersona].name : 'Expert'}",
+    "overallImpression": "A paragraph summarizing the design from the persona's perspective.",
+    "strategicFeedback": ["Point 1", "Point 2", "Point 3"],
+    "philosophicalAdvice": "A deep, guiding principle relevant to this specific design.",
+    "actionableTips": ["Tip 1", "Tip 2"]
+  }` : ''}
+}`;
+
+    // Try Anthropic (Sole AI Engine for Vision/Reasoning)
     if (anthropicKey) {
-      for (const modelName of anthropicModels) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout per model
-
-          const response = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": anthropicKey,
-              "anthropic-version": "2023-06-01"
-            },
-            signal: controller.signal,
-            body: JSON.stringify({
-              model: modelName,
-              max_tokens: 2500,
-              temperature: 0,
-              system: `You are an elite Visual Quality Assurance (VQA) specialist and Accessibility Auditor. Your task is to perform a rigorous analysis of UI designs specifically for structural and standard-compliant flaws.
-
-SCOPE OF WORK:
-Only report issues that fall into these four categories:
-1. UI Spacing & Alignment: Inconsistent margins, misaligned text/elements, or cramped layouts.
-2. Visual Hierarchy: Unclear focal points, inappropriate sizing of headings vs body, or confusing element stacking.
-3. Contrast & Accessibility (WCAG 2.1): Text or UI components failing AA/AAA contrast ratios, or missing clear interactive indicators.
-4. Professional UI Standards: Violations of common design patterns (e.g., inconsistent corner radii, broken grids).
-
-STRICT NEGATIVE CONSTRAINTS:
-- DO NOT report subjective "style" preferences.
-- DO NOT report issues that are not clearly visible in the static screenshot.
-- DO NOT invent "minor" issues just to fill a quota. If a design is high quality, report fewer (or zero) issues.
-- AIM for high precision over high volume.
-
-CRITICAL: 
-1. Respond ONLY with a valid JSON object.
-2. Use single quotes inside string values for emphasis.
-3. Coordinates (x, y) must be 0-100.
-              
-              JSON Format:
-              {
-                "designType": "UX",
-                "annotations": [
-                  {
-                    "id": number,
-                    "x": number,
-                    "y": number,
-                    "type": "accessibility" | "usability" | "consistency" | "visual",
-                    "severity": "critical" | "minor",
-                    "title": string,
-                    "description": string,
-                    "fix": string
-                  }
-                ]
-              }`,
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
-                    { type: "text", text: `Audit this UI. ${context || ""}` }
-                  ],
-                },
-              ],
-            }),
-          });
-
-          clearTimeout(timeoutId);
-          const data = await response.json();
-          if (response.ok && data.content) {
-            const parsed = safeParseAIResponse(data.content[0].text);
-            if (parsed) return c.json({ ...parsed, mode: 'ai', modelUsed: modelName });
-          }
-        } catch (e) { 
-          console.warn(`Model ${modelName} failed or timed out:`, e.name);
-          continue; 
-        }
-      }
-    }
-
-    // OpenAI Fallback with timeout
-    if (openaiKey) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${openaiKey}`,
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: "gpt-4o",
-            messages: [
-              { 
-                role: "system", 
-                content: `You are a strict UI/UX Visual QA auditor. 
-                ONLY report issues related to:
-                1. Spacing & Alignment (inconsistent padding, misalignment).
-                2. Visual Hierarchy (incorrect sizing, focal point confusion).
-                3. Contrast & WCAG 2.1 (accessibility failures).
-                
-                IGNORE subjective style or content. If the design is perfect, return an empty annotations array.
-                Use single quotes inside string values. Return JSON ONLY.` 
-              },
-              { role: "user", content: [{ type: "image_url", image_url: { url: image } }] }
-            ],
-            response_format: { type: "json_object" }
-          }),
-        });
+        // We'll try a list of models in order of preference (best vision first)
+        const modelsToTry = [
+          "claude-opus-4-5-20251101",
+          "claude-3-5-sonnet-20241022",
+          "claude-3-5-sonnet-20240620",
+          "claude-3-sonnet-20240229",
+          "claude-3-5-haiku-20241022",
+          "claude-3-haiku-20240307"
+        ];
         
-        clearTimeout(timeoutId);
-        const data = await response.json();
-        if (response.ok) {
-          const parsed = safeParseAIResponse(data.choices[0].message.content);
-          if (parsed) return c.json({ ...parsed, mode: 'ai', modelUsed: 'gpt-4o' });
+        let lastError = "";
+
+        for (const model of modelsToTry) {
+          console.log(`Attempting audit with model: ${model}`);
+          try {
+            const userMessageContent = [
+              { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+              { type: "text", text: `High-precision Design Audit: Please analyze this image and identify specific UI/UX and Contrast issues. 
+              
+CALIBRATION RULE: 
+- Coordinates must be exact decimals.
+- Markers must be centered on the specific visual element.
+- Do not guess; if an element's location is ambiguous, do not annotate it.
+- (0,0) is the absolute top-left pixel.
+- (100,100) is the absolute bottom-right pixel.
+
+${context ? `Context: ${context}` : ''} 
+
+Return the audit in the specified JSON format.` }
+            ];
+
+            const response = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": anthropicKey,
+                "anthropic-version": "2023-06-01"
+              },
+              body: JSON.stringify({
+                model: model,
+                max_tokens: 4096,
+                temperature: 0,
+                system: systemPrompt,
+                messages: [
+                  {
+                    role: "user",
+                    content: userMessageContent,
+                  },
+                ],
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const parsed = safeParseAIResponse(data.content[0].text);
+              if (parsed && (parsed.annotations?.length > 0 || parsed.influencerReview)) {
+                console.log(`Successfully used model: ${model}`);
+                return c.json({ ...parsed, mode: 'ai', modelUsed: model });
+              }
+            } else {
+              const errorBody = await response.text();
+              lastError = errorBody;
+              console.warn(`Model ${model} failed with: ${errorBody}`);
+              // Continue to next model if it's a "not found" or "permission" error
+            }
+          } catch (e) {
+            console.error(`Fetch error for ${model}:`, e);
+            lastError = String(e);
+          }
         }
+
+        // If we exhausted all models
+        return c.json({ 
+          error: `AI Vision Engine failed to find an available model. Latest error: ${lastError}`,
+          mode: 'failed'
+        }, 500);
+
       } catch (e) { 
-        console.warn("OpenAI fallback failed or timed out:", e.name);
+        console.error("Anthropic engine critical failure:", e); 
       }
     }
 
-    return c.json({ mode: 'simulated', annotations: [] });
+    // Last Resort: If we reach here, it means all AI models failed or returned no annotations.
+    return c.json({ 
+      error: "The AI Vision Engine was unable to generate a valid audit for this design. This usually happens if the API key has insufficient credits or the image format is unsupported.",
+      mode: 'failed'
+    }, 500);
   } catch (error) {
-    return c.json({ error: "Server error" }, 500);
+    console.error("Critical server error:", error);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+});
+
+app.post("/make-server-cdc57b20/plugin-upload", async (c) => {
+  try {
+    const { image } = await c.req.json();
+    if (!image) return c.json({ error: "No image provided" }, 400);
+    
+    const uploadId = crypto.randomUUID();
+    const key = `plugin_upload_${uploadId}`;
+    
+    // Store in KV with a 1-hour expiration (simulated via timestamp check later if needed)
+    await kv.set(key, { 
+      image, 
+      expiresAt: Date.now() + 3600000 
+    });
+    
+    return c.json({ uploadId });
+  } catch (error) {
+    console.error("Plugin upload error:", error);
+    return c.json({ error: "Failed to upload image" }, 500);
+  }
+});
+
+app.get("/make-server-cdc57b20/plugin-upload/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const data = await kv.get(`plugin_upload_${id}`);
+    if (!data) return c.json({ error: "Upload not found" }, 404);
+    
+    // Check expiration
+    if (data.expiresAt && Date.now() > data.expiresAt) {
+      return c.json({ error: "Upload expired" }, 410);
+    }
+    
+    return c.json(data);
+  } catch (error) {
+    return c.json({ error: "Failed to retrieve upload" }, 500);
+  }
+});
+
+app.post("/make-server-cdc57b20/chat", async (c) => {
+  try {
+    const { messages, persona, context } = await c.req.json();
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+
+    if (!anthropicKey) {
+      return c.json({ error: "Anthropic API key not configured" }, 500);
+    }
+
+    const influencer = PERSONAS[persona];
+    // 1. Validate Persona
+    if (!influencer) {
+      return c.json({ error: "Invalid persona" }, 400);
+    }
+
+    // 2. Strict Message Validation (Anthropic Requirement: First message MUST be 'user')
+    // Filter out any system/assistant messages at the start
+    let apiMessages = Array.isArray(messages) ? messages : [];
+    
+    // Remove leading non-user messages
+    while (apiMessages.length > 0 && apiMessages[0].role !== 'user') {
+      apiMessages.shift();
+    }
+
+    // If no valid user message remains, fail gracefully
+    if (apiMessages.length === 0) {
+      return c.json({ error: "Conversation must start with a user message." }, 400);
+    }
+
+    const systemPrompt = `You are ${influencer.name}, ${influencer.role}.
+    Your tone is ${influencer.tone}.
+    
+    CONTEXT:
+    ${influencer.prompt}
+
+    The user is asking you questions about a design you just audited.
+    
+    Here is the context of the audit you performed:
+    ${JSON.stringify(context)}
+    
+    Answer the user's questions based on your persona and the audit results.
+    Be helpful, specific, and stay in character.
+    Keep responses concise and conversational.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-3-5-sonnet-20240620",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: apiMessages
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return c.json({ message: data.content[0].text });
+    } else {
+      const errorText = await response.text();
+      console.error("Chat API error:", errorText);
+      return c.json({ error: `Failed to generate response: ${errorText}` }, 500);
+    }
+  } catch (error) {
+    console.error("Chat server error:", error);
+    return c.json({ error: "Internal server error" }, 500);
   }
 });
 

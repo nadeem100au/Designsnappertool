@@ -103,7 +103,7 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({ annotations, width
       width={width}
       height={height}
       className={className}
-      style={{ mixBlendMode: 'multiply' }}
+      style={{ mixBlendMode: 'screen' }}
     />
   );
 };

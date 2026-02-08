@@ -99,7 +99,7 @@ function MeetingTranscriptUI() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="px-2.5 py-1 bg-primary/10 rounded-full border border-primary/20">
-              <span className="text-[10px] font-black text-primary uppercase tracking-widest">Accessibility Audit</span>
+              <span className="text-[10px] font-black text-primary uppercase tracking-widest">Contrast Audit</span>
             </div>
             <span className="text-slate-400 text-xs font-medium italic">v3.2 Engine</span>
           </div>
@@ -115,7 +115,7 @@ function MeetingTranscriptUI() {
         {/* Title */}
         <div className="space-y-2">
           <h4 className="text-3xl font-black text-slate-900 leading-tight tracking-tight">
-            Checkout Flow Accessibility Analysis
+            Checkout Flow Contrast Analysis
           </h4>
           <p className="text-sm font-medium text-slate-500">18-point WCAG Framework Compliance Report</p>
         </div>
@@ -151,7 +151,7 @@ function ReportCardUI() {
               <BarChart3 className="w-5 h-5 text-primary" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] font-black text-slate-900 leading-none">Accessibility Health</span>
+              <span className="text-[11px] font-black text-slate-900 leading-none">Contrast Health</span>
               <span className="text-[9px] font-bold text-slate-400">Scan Complete • 2m ago</span>
             </div>
           </div>
@@ -363,25 +363,26 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <motion.nav 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="relative z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl"
+        className="relative z-50 border-b border-slate-100/50 bg-white/70 backdrop-blur-2xl"
       >
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-[0_4px_12px_rgba(var(--primary-rgb),0.25)]">
-              <Target className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight text-slate-900">Design Snapper</span>
-          </div>
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-500">
-            <a href="#" className="hover:text-slate-900 transition-colors">Features</a>
-            <a href="#" className="hover:text-slate-900 transition-colors">How it works</a>
-            <a href="#" className="hover:text-slate-900 transition-colors">Pricing</a>
-          </div>
+        <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium">Log in</Button>
+            <div className="w-10 h-10 bg-slate-900 rounded-[14px] flex items-center justify-center shadow-xl rotate-[-2deg]">
+              <Target className="w-6 h-6 text-white" />
+            </div>
+            <span className="font-black text-2xl tracking-tighter text-slate-900 uppercase italic">Snapper.</span>
+          </div>
+          <div className="hidden md:flex items-center gap-10 text-xs font-black uppercase tracking-widest text-slate-400">
+            <a href="#" className="hover:text-slate-900 transition-colors">Audit Engine</a>
+            <a href="#" className="hover:text-slate-900 transition-colors">Case Studies</a>
+            <a href="#" className="hover:text-slate-900 transition-colors">Frameworks</a>
+            <a href="#" className="hover:text-slate-900 transition-colors">Enterprise</a>
+          </div>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" className="text-slate-900 font-black text-xs uppercase tracking-widest">Sign In</Button>
             <Button 
               onClick={() => onNavigate('upload')}
-              className="bg-slate-900 text-white hover:bg-slate-800 font-bold px-6 shadow-lg rounded-full transition-all active:scale-95"
+              className="bg-slate-900 text-white hover:bg-slate-800 font-black px-8 py-6 shadow-2xl rounded-[18px] transition-all active:scale-95 text-xs uppercase tracking-widest"
             >
               Get Started
             </Button>
@@ -390,29 +391,28 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       </motion.nav>
 
       {/* Hero Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-32">
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-28 pb-32">
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="text-center">
-          <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/5 border border-primary/10 text-primary rounded-full text-xs font-bold tracking-wider mb-8">
-            <span className="uppercase flex items-center gap-2"><Sparkles className="w-3.5 h-3.5" />NEW: V3 Analysis Engine is Live</span>
+          <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-black tracking-widest mb-10 shadow-sm">
+            <span className="uppercase flex items-center gap-2"><Sparkles className="w-4 h-4" />Vision AI Audit Engine v4.0</span>
           </motion.div>
-          <motion.h1 variants={itemVariants} className="text-6xl md:text-8xl font-black mb-8 leading-[1.1] tracking-tight text-slate-900">
-            Instant Design Reviews<br /><span className="text-slate-400">Powered by Vision AI</span>
+          <motion.h1 variants={itemVariants} className="text-7xl md:text-9xl font-black mb-10 leading-[0.95] tracking-tighter text-slate-900">
+            Design Snapper.<br /><span className="text-slate-300">Better Audits.</span>
           </motion.h1>
-          <motion.p variants={itemVariants} className="text-xl text-slate-500 mb-12 max-w-3xl mx-auto leading-relaxed font-medium">
-            Upload any screenshot and get professional design feedback in seconds. 
-            Automate your UI audits for accessibility, usability, and visual consistency.
+          <motion.p variants={itemVariants} className="text-2xl text-slate-500 mb-14 max-w-3xl mx-auto leading-relaxed font-medium">
+            Stop manual UI reviews. Upload any screenshot and get 18-point contrast & UX feedback in seconds.
           </motion.p>
-          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button size="lg" onClick={() => onNavigate('upload')} className="h-14 px-10 text-lg bg-primary hover:bg-primary/90 text-white rounded-full font-bold shadow-xl transition-all hover:scale-[1.02] active:scale-95 group">
-              Analyze Your UI <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-5 justify-center items-center">
+            <Button size="lg" onClick={() => onNavigate('upload')} className="h-16 px-12 text-xl bg-slate-900 hover:bg-slate-800 text-white rounded-[24px] font-black shadow-2xl transition-all hover:scale-[1.02] active:scale-95 group">
+              Start Your Audit <ArrowRight className="w-6 h-6 ml-3 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button 
               variant="outline" 
               size="lg" 
               onClick={() => onNavigate('dashboard', SAMPLE_REPORT_DATA)}
-              className="h-14 px-10 text-lg border-slate-200 hover:bg-slate-50 text-slate-600 rounded-full font-bold"
+              className="h-16 px-12 text-xl border-slate-200 hover:bg-slate-50 text-slate-900 rounded-[24px] font-black"
             >
-              View Sample Report
+              View Live Demo
             </Button>
           </motion.div>
         </motion.div>
@@ -469,7 +469,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                     <div className="bg-red-500 text-white p-3 rounded-2xl shadow-xl flex items-center gap-3 min-w-[180px] border-2 border-white">
                       <AlertCircle className="w-5 h-5 shrink-0" />
                       <div>
-                        <p className="text-[10px] font-black uppercase leading-none mb-1 opacity-70">Accessibility</p>
+                        <p className="text-[10px] font-black uppercase leading-none mb-1 opacity-70">Contrast</p>
                         <p className="text-xs font-bold leading-tight">Contrast too low</p>
                       </div>
                     </div>
