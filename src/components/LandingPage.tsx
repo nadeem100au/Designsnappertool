@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Upload, Zap, Target, CheckCircle, ArrowRight, ShieldCheck, Cpu, LayoutPanelTop, BarChart3, Star, Sparkles, Pin, Settings, FileText, AlertCircle, ChevronDown, LogOut, User } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'motion/react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import type { Session } from '@supabase/supabase-js';
+import { UserProfileMenu } from './UserProfileMenu';
+
 
 import saasMockup from 'figma:asset/59f7c40d3db6dd1bd00dec669d25e2bff24a123c.png';
 
@@ -344,21 +347,8 @@ function ProductShowcase() {
 }
 
 export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps) {
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setProfileDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const user = session?.user;
+
   const avatarUrl = user?.user_metadata?.avatar_url;
   const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
   const firstName = fullName.split(' ')[0];
@@ -405,57 +395,9 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
               >
                 Upload Design
               </Button>
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-slate-100/80 transition-all cursor-pointer group"
-                >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={fullName}
-                      className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200 group-hover:ring-slate-300 transition-all"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center">
-                      <User className="w-4 h-4 text-slate-500" />
-                    </div>
-                  )}
-                  <span className="font-bold text-sm text-slate-700 hidden sm:block">{firstName}</span>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                <AnimatePresence>
-                  {profileDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[100]"
-                    >
-                      <div className="px-4 py-3 border-b border-slate-100">
-                        <p className="text-sm font-bold text-slate-900 truncate">{fullName}</p>
-                        <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                      </div>
-                      <div className="p-2">
-                        <button
-                          onClick={() => {
-                            setProfileDropdownOpen(false);
-                            onSignOut?.();
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Log Out
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <UserProfileMenu session={session} onSignOut={onSignOut} onNavigate={onNavigate} />
             </div>
+
           ) : (
             /* Logged-out state: Sign In + Get Started */
             <div className="flex items-center gap-4">

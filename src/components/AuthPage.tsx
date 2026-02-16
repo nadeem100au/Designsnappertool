@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { supabase } from '../utils/supabase/client';
-import { Loader2, ArrowLeft, Target, Mail } from 'lucide-react';
+import { Loader2, ArrowLeft, Target, Mail, Eye, EyeOff } from 'lucide-react';
+
 import { toast } from 'sonner';
 
 interface AuthPageProps {
@@ -12,6 +13,8 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
     const [useOtp, setUseOtp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+
     const [otpCode, setOtpCode] = useState('');
     const [showOtpInput, setShowOtpInput] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -69,13 +72,26 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
                 if (isSignUp) {
                     const { error } = await supabase.auth.signUp({ email, password });
                     if (error) throw error;
-                    toast.success('Check your email for the confirmation link!');
+                    // Auto redirect after signup? Usually requires email verification.
+                    // If no verification needed or if we want to show a success message first.
+                    // But user asked for auto-redirect.
+                    // However, signUp might return a session depending on config.
+                    // Let's check for session and redirect if present, otherwise show toast.
+                    const { data } = await supabase.auth.getSession();
+                    if (data.session) {
+                        toast.success('Account created! Redirecting...');
+                        onNavigate('upload');
+                    } else {
+                        toast.success('Check your email for the confirmation link!');
+                    }
                 } else {
                     const { error } = await supabase.auth.signInWithPassword({ email, password });
                     if (error) throw error;
                     toast.success('Successfully signed in!');
+                    onNavigate('upload');
                 }
             }
+
         } catch (error: any) {
             toast.error(error.message || 'Authentication error');
         } finally {
@@ -357,30 +373,55 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
                                         onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
                                     >Forgot?</a>
                                 </div>
-                                <input
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    minLength={6}
-                                    style={{
-                                        width: '100%',
-                                        height: 48,
-                                        padding: '0 16px',
-                                        background: '#f8fafc',
-                                        border: '1px solid transparent',
-                                        borderRadius: 12,
-                                        fontSize: 14,
-                                        color: '#0F172A',
-                                        outline: 'none',
-                                        transition: 'all 0.2s',
-                                        boxSizing: 'border-box',
-                                        letterSpacing: '0.15em',
-                                    }}
-                                    onFocus={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.border = '1px solid #cbd5e1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(15,23,42,0.05)'; }}
-                                    onBlur={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.border = '1px solid transparent'; e.currentTarget.style.boxShadow = 'none'; }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        minLength={6}
+                                        style={{
+                                            width: '100%',
+                                            height: 48,
+                                            padding: '0 48px 0 16px',
+                                            background: '#f8fafc',
+                                            border: '1px solid transparent',
+                                            borderRadius: 12,
+                                            fontSize: 14,
+                                            color: '#0F172A',
+                                            outline: 'none',
+                                            transition: 'all 0.2s',
+                                            boxSizing: 'border-box',
+                                            letterSpacing: '0.15em',
+                                        }}
+                                        onFocus={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.border = '1px solid #cbd5e1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(15,23,42,0.05)'; }}
+                                        onBlur={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.border = '1px solid transparent'; e.currentTarget.style.boxShadow = 'none'; }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{
+                                            position: 'absolute',
+                                            right: 12,
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 4,
+                                            cursor: 'pointer',
+                                            color: '#94a3b8',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.color = '#64748b'}
+                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+
                             </div>
                         )
                     )}

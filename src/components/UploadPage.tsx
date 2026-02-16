@@ -45,6 +45,8 @@ const PERSONA_IMAGES = {
 interface UploadPageProps {
   onNavigate: (screen: string, data?: any) => void;
   data?: any;
+  session?: any; // strict typing would be Session | null but let's use any for now or import Session
+  onSignOut?: () => void;
 }
 
 const ItemType = {
@@ -147,7 +149,9 @@ const CRITERIA_FRAMEWORK = {
   }
 };
 
-export function UploadPage({ onNavigate, data }: UploadPageProps) {
+import { UserProfileMenu } from './UserProfileMenu';
+
+export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageProps) {
   const [currentStep, setCurrentStep] = useState<'upload' | 'criteria'>('upload');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -501,11 +505,14 @@ export function UploadPage({ onNavigate, data }: UploadPageProps) {
               <ArrowLeft className="w-4 h-4" />
               {currentStep === 'criteria' ? 'Back to Upload' : 'Back to Home'}
             </Button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-slate-900 rounded-[10px] flex items-center justify-center shadow-lg">
-                <Zap className="w-4.5 h-4.5 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-2">
+                <div className="w-8 h-8 bg-slate-900 rounded-[10px] flex items-center justify-center shadow-lg">
+                  <Zap className="w-4.5 h-4.5 text-white" />
+                </div>
+                <span className="font-black text-lg tracking-tighter uppercase italic">Snapper.</span>
               </div>
-              <span className="font-black text-lg tracking-tighter uppercase italic">Snapper.</span>
+              <UserProfileMenu session={session} onSignOut={onSignOut} onNavigate={onNavigate} />
             </div>
           </div>
         </nav>
@@ -699,8 +706,8 @@ export function UploadPage({ onNavigate, data }: UploadPageProps) {
                                   key={item}
                                   onClick={() => toggleCriterion(key as any, item)}
                                   className={`relative px-[12px] py-[6px] rounded-[16px] text-[14px] font-medium transition-all flex items-center gap-1.5 bg-white ${isSelected
-                                      ? 'text-blue-600 border-[1.5px] border-blue-600 shadow-[0px_1px_2px_0px_rgba(0,102,255,0.05)]'
-                                      : 'text-[#535862] border border-[#d5d7da] shadow-[inset_0px_0px_0px_1px_rgba(10,13,18,0.18),inset_0px_-2px_0px_0px_rgba(10,13,18,0.05),0px_1px_2px_0px_rgba(10,13,18,0.05)] hover:border-slate-300'
+                                    ? 'text-blue-600 border-[1.5px] border-blue-600 shadow-[0px_1px_2px_0px_rgba(0,102,255,0.05)]'
+                                    : 'text-[#535862] border border-[#d5d7da] shadow-[inset_0px_0px_0px_1px_rgba(10,13,18,0.18),inset_0px_-2px_0px_0px_rgba(10,13,18,0.05),0px_1px_2px_0px_rgba(10,13,18,0.05)] hover:border-slate-300'
                                     }`}
                                 >
                                   {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.5px]" />}

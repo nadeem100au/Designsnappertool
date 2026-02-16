@@ -260,9 +260,11 @@ export default function App() {
       case 'landing':
         return <LandingPage onNavigate={navigateToScreen} session={session} onSignOut={handleSignOut} />;
       case 'upload':
-        return <UploadPage onNavigate={navigateToScreen} data={analysisData} />;
+        return <UploadPage onNavigate={navigateToScreen} data={analysisData} session={session} onSignOut={handleSignOut} />;
+
       case 'dashboard':
-        return analysisData ? <AnnotationDashboard onNavigate={navigateToScreen} data={analysisData} /> : <LandingPage onNavigate={navigateToScreen} />;
+        return analysisData ? <AnnotationDashboard onNavigate={navigateToScreen} data={analysisData} session={session} onSignOut={handleSignOut} /> : <LandingPage onNavigate={navigateToScreen} />;
+
       case 'report':
         return analysisData ? <ReportPage onNavigate={navigateToScreen} data={analysisData} /> : <LandingPage onNavigate={navigateToScreen} />;
       case 'influencer-library':

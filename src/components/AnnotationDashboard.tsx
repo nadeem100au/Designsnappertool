@@ -72,6 +72,8 @@ interface AnnotationDashboardProps {
     analysisMode?: string;
     influencerReview?: InfluencerReview;
   };
+  session?: any;
+  onSignOut?: () => void;
 }
 
 interface ChatMessage {
@@ -79,7 +81,9 @@ interface ChatMessage {
   content: string | Array<{ type: string; text?: string; source?: any }>;
 }
 
-export function AnnotationDashboard({ onNavigate, data }: AnnotationDashboardProps) {
+import { UserProfileMenu } from './UserProfileMenu';
+
+export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: AnnotationDashboardProps) {
   const [selectedAnnotation, setSelectedAnnotation] = useState<number | null>(null);
   const [learningAnnotation, setLearningAnnotation] = useState<Annotation | null>(null);
   const [modalTab, setModalTab] = useState('analysis');
@@ -345,6 +349,7 @@ export function AnnotationDashboard({ onNavigate, data }: AnnotationDashboardPro
                 {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-2" />}
                 Share
               </Button>
+              <UserProfileMenu session={session} onSignOut={onSignOut} onNavigate={onNavigate} />
             </div>
           </div>
         </div>
