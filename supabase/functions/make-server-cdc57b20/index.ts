@@ -384,16 +384,40 @@ app.post("/make-server-cdc57b20/plugin-upload", async (c) => {
 app.get("/make-server-cdc57b20/plugin-upload/:id", async (c) => {
   try {
     const id = c.req.param('id');
-    const data = await kv.get(`plugin_upload_${id}`);
-    if (!data) return c.json({ error: "Upload not found" }, 404);
 
-    // Check expiration
-    if (data.expiresAt && Date.now() > data.expiresAt) {
-      return c.json({ error: "Upload expired" }, 410);
+    // Get AWS Config
+    const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
+    const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+    const region = Deno.env.get("AWS_REGION") || "ap-south-1";
+    const bucketName = Deno.env.get("S3_BUCKET_NAME") || "designsnapper-uploads";
+
+    if (!accessKeyId || !secretAccessKey) {
+      return c.json({ error: "AWS credentials not configured" }, 500);
     }
 
-    return c.json(data);
-  } catch (error) {
+    const s3Client = new S3Client({
+      region,
+      credentials: { accessKeyId, secretAccessKey },
+    });
+
+    // Fetch image from S3
+    const key = `plugin-uploads/${id}.png`;
+    const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
+    const response = await s3Client.send(getCommand);
+
+    // Convert to base64 data URL
+    const bodyBytes = await response.Body?.transformToByteArray();
+    if (!bodyBytes) return c.json({ error: "Image not found" }, 404);
+
+    const base64 = btoa(String.fromCharCode(...bodyBytes));
+    const dataUrl = `data:image/png;base64,${base64}`;
+
+    return c.json({ image: dataUrl });
+  } catch (error: any) {
+    console.error("Plugin upload fetch error:", error);
+    if (error?.name === 'NoSuchKey') {
+      return c.json({ error: "Upload not found" }, 404);
+    }
     return c.json({ error: "Failed to retrieve upload" }, 500);
   }
 });
