@@ -258,8 +258,25 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
     const checkPluginUpload = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const uploadId = urlParams.get('uploadId');
+      const imageUrl = urlParams.get('imageUrl');
 
-      if (uploadId) {
+      if (imageUrl) {
+        setIsImageLoading(true);
+        try {
+          // Direct image URL (e.g. from Supabase Storage)
+          setUploadedImages(prev => [...prev, imageUrl]);
+          toast.success("Design imported from Figma plugin");
+
+          // Clean URL
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        } catch (e) {
+          console.error("Failed to load image from URL:", e);
+          toast.error("Failed to load image");
+        } finally {
+          setIsImageLoading(false);
+        }
+      } else if (uploadId) {
         setIsImageLoading(true);
         try {
           const response = await fetch(
