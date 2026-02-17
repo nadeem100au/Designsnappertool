@@ -314,7 +314,9 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
         }
       }
     };
-    checkPluginUpload();
+    useEffect(() => {
+      checkPluginUpload();
+    }, []);
 
     const onPaste = (e: any) => handlePaste(e);
     document.addEventListener('paste', onPaste);
