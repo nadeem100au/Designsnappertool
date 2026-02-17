@@ -391,7 +391,7 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
     });
 
     return {
-      dataUrl: canvas.toDataURL('image/jpeg', 0.85),
+      dataUrl: canvas.toDataURL('image/png'),
       heights,
       widths,
       width: maxWidth
@@ -426,7 +426,7 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
         }
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
+        resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = () => resolve(dataUrl);
       img.src = dataUrl;
