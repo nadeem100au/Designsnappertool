@@ -8,9 +8,10 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 interface HistoryListProps {
     userId: string;
     onSelectAudit: (audit: any) => void;
+    variant?: 'grid' | 'sidebar';
 }
 
-export function HistoryList({ userId, onSelectAudit }: HistoryListProps) {
+export function HistoryList({ userId, onSelectAudit, variant = 'grid' }: HistoryListProps) {
     const [audits, setAudits] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -35,21 +36,20 @@ export function HistoryList({ userId, onSelectAudit }: HistoryListProps) {
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-300" />
-                <p className="text-slate-400 mt-4 text-sm font-medium">Loading history...</p>
+            <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-                <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
-                <p className="text-slate-600 font-medium">{error}</p>
+            <div className="flex flex-col items-center justify-center py-8 text-center px-4">
+                <AlertCircle className="w-8 h-8 text-red-400 mb-2" />
+                <p className="text-slate-600 text-sm font-medium">{error}</p>
                 <button
                     onClick={() => window.location.reload()}
-                    className="mt-4 text-sm text-primary underline hover:text-primary/80"
+                    className="mt-2 text-xs text-primary underline hover:text-primary/80"
                 >
                     Try Refreshing
                 </button>
@@ -59,14 +59,50 @@ export function HistoryList({ userId, onSelectAudit }: HistoryListProps) {
 
     if (audits.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                    <FileImage className="w-8 h-8 text-slate-300" />
+            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50 mx-4">
+                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                    <FileImage className="w-6 h-6 text-slate-300" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">No Audits Yet</h3>
-                <p className="text-slate-500 max-w-xs mt-2">
-                    Your past design audits will appear here once you've completed your first analysis.
+                <h3 className="text-sm font-bold text-slate-900">No Audits Yet</h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-[200px]">
+                    Your past audits will appear here.
                 </p>
+            </div>
+        );
+    }
+
+    if (variant === 'sidebar') {
+        return (
+            <div className="space-y-3 p-1">
+                {audits.map((audit) => (
+                    <div
+                        key={audit.id}
+                        onClick={() => onSelectAudit(audit)}
+                        className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors group border border-transparent hover:border-slate-200"
+                    >
+                        <div className="w-20 h-14 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100 relative">
+                            {audit.thumbnail_url ? (
+                                <ImageWithFallback
+                                    src={audit.thumbnail_url}
+                                    alt={audit.project_name || 'Audit Thumbnail'}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                                    <FileImage className="w-6 h-6 text-slate-200" />
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-slate-900 line-clamp-2 leading-tight mb-1 group-hover:text-primary transition-colors">
+                                {audit.project_name || 'Untitled Audit'}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 font-medium">
+                                {formatDistanceToNow(new Date(audit.created_at), { addSuffix: true })}
+                            </p>
+                        </div>
+                    </div>
+                ))}
             </div>
         );
     }

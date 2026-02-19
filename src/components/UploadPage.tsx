@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import {
   Plus,
@@ -22,11 +21,12 @@ import {
   ChevronRight,
   Target,
   Search,
-  Check
+  Check,
+  History
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { analyzeScreenshotWithAI } from '../utils/aiAnalysis';
-import { HistoryList } from './HistoryList';
+import { HistorySidebar } from './HistorySidebar';
 import { saveAudit } from '../utils/supabase/database';
 import { uploadAuditImage } from '../utils/supabase/storage';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
@@ -167,7 +167,7 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
   const [error, setError] = useState<string | null>(null);
   const [analysisMode, setAnalysisMode] = useState<'technical-only' | 'with-influencer'>(data?.mode || 'technical-only');
   const [selectedPersona, setSelectedPersona] = useState<string>(data?.selectedPersona || 'chris-do');
-  const [view, setView] = useState<'new' | 'history'>('new');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [selectedCriteria, setSelectedCriteria] = useState<{
     visual: string[];
@@ -548,6 +548,16 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
               {currentStep === 'criteria' ? 'Back to Upload' : 'Back to Home'}
             </Button>
             <div className="flex items-center gap-4">
+              {session && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setIsHistoryOpen(true)}
+                  className="flex items-center gap-2 text-slate-500 hover:text-slate-900"
+                >
+                  <History className="w-4 h-4" />
+                  History
+                </Button>
+              )}
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-8 h-8 bg-slate-900 rounded-[10px] flex items-center justify-center shadow-lg">
                   <Zap className="w-4.5 h-4.5 text-white" />
@@ -559,38 +569,24 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
           </div>
         </nav>
 
+        {/* History Sidebar */}
+        {session && (
+          <HistorySidebar
+            isOpen={isHistoryOpen}
+            onClose={() => setIsHistoryOpen(false)}
+            userId={session.user.id}
+            onSelectAudit={(audit) => {
+              if (audit.analysis_data) {
+                onNavigate('dashboard', audit.analysis_data);
+              }
+            }}
+          />
+        )}
+
         <div className="max-w-4xl mx-auto px-6 py-16">
           {!isAnalyzing ? (
-            <div className="flex flex-col items-center w-full">
-              {session && (
-                <div className="w-full max-w-lg mb-8 p-1 bg-slate-100/80 backdrop-blur-sm border border-slate-200 rounded-xl grid grid-cols-2 gap-1">
-                  <button
-                    onClick={() => setView('new')}
-                    className={`py-2.5 rounded-lg text-sm font-bold transition-all ${view === 'new' ? 'bg-white shadow-sm text-slate-900 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
-                  >
-                    New Audit
-                  </button>
-                  <button
-                    onClick={() => setView('history')}
-                    className={`py-2.5 rounded-lg text-sm font-bold transition-all ${view === 'history' ? 'bg-white shadow-sm text-slate-900 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
-                  >
-                    History
-                  </button>
-                </div>
-              )}
-
-              {view === 'history' && session ? (
-                <div className="w-full max-w-6xl">
-                  <HistoryList
-                    userId={session.user.id}
-                    onSelectAudit={(audit) => {
-                      if (audit.analysis_data) {
-                        onNavigate('dashboard', audit.analysis_data);
-                      }
-                    }}
-                  />
-                </div>
-              ) : currentStep === 'upload' ? (
+            <div className="flex flex-col items-center">
+              {currentStep === 'upload' ? (
                 <>
                   <div className="text-center mb-12 space-y-4">
                     <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
