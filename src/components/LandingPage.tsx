@@ -416,10 +416,10 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
             <span className="uppercase flex items-center gap-2"><Sparkles className="w-4 h-4" />Vision AI Audit Engine v4.0</span>
           </motion.div>
           <motion.h1 variants={itemVariants} className="text-7xl md:text-9xl font-black mb-10 leading-[0.95] tracking-tighter text-slate-900">
-            Design Snapper.<br /><span className="text-slate-300">The #1 Design Audit Tool.</span>
+            Design Snapper.<br /><span className="text-slate-300">The #1 AI Design Reviewer.</span>
           </motion.h1>
           <motion.p variants={itemVariants} className="text-2xl text-slate-500 mb-14 max-w-3xl mx-auto leading-relaxed font-medium">
-            Stop manual UI reviews. Use <strong>Design Snapper</strong> to upload any screenshot and get 18-point contrast & UX feedback in seconds.
+            Stop manual UI reviews. Use <strong className="text-slate-900 font-black">Design Snapper</strong>, the ultimate <strong className="text-slate-900 font-black">design review tool</strong>, to get an instant <strong className="text-slate-900 font-black">design audit</strong> and <strong className="text-slate-900 font-black">AI design critique</strong> in seconds.
           </motion.p>
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-5 justify-center items-center">
             <Button size="lg" onClick={() => onNavigate('upload')} className="h-16 px-12 text-xl bg-slate-900 hover:bg-slate-800 text-white rounded-[24px] font-black shadow-2xl transition-all hover:scale-[1.02] active:scale-95 group">
@@ -574,7 +574,7 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
               </div>
             </motion.div>
 
-            {/* FEATURE 3: Comprehensive Reports (Light Theme Card) */}
+            {/* FEATURE 3: AI Design Critique (Light Theme Card) */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -587,10 +587,10 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
                   <div className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center">
                     <FileText className="w-5 h-5 text-orange-500" />
                   </div>
-                  <h3 className="text-xl font-black text-slate-900">Comprehensive Reports</h3>
+                  <h3 className="text-xl font-black text-slate-900">AI Design Critique</h3>
                 </div>
                 <p className="text-sm font-medium text-slate-500 mb-6 leading-relaxed">
-                  Export executive summaries and dev-ready specs with a single click. Actionable design insights.
+                  Get a comprehensive <strong className="text-slate-900 font-bold">design audit</strong> and actionable <strong className="text-slate-900 font-bold">AI design reviewer</strong> feedback. Export executive summaries with a single click.
                 </p>
               </div>
               <div className="flex-1 px-8 pb-8 flex items-center justify-center">
