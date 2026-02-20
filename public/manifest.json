@@ -1,0 +1,21 @@
+{
+    "name": "Design Snapper",
+    "short_name": "DesignSnapper",
+    "description": "Design Snapper is the premier AI design reviewer and audit tool. Get instant design critiques, accessibility checks, and UX feedback.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

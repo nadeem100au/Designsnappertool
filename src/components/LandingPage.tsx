@@ -83,7 +83,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: any = {
   hidden: { y: 20, opacity: 0 },
   visible: {
     y: 0,
@@ -300,7 +300,7 @@ function ProductShowcase() {
                 <div className="relative rounded-[32px] overflow-hidden shadow-[0_40px_100px_-15px_rgba(0,0,0,0.15)] border border-slate-200 bg-white">
                   <ImageWithFallback
                     src={saasMockup}
-                    alt="Transcript Mockup"
+                    alt="Design Snapper AI Design Audit Transcript Mockup"
                     className="w-full h-auto"
                   />
 
@@ -377,7 +377,7 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
             <div className="w-10 h-10 bg-slate-900 rounded-[14px] flex items-center justify-center shadow-xl rotate-[-2deg]">
               <Target className="w-6 h-6 text-white" />
             </div>
-            <span className="font-black text-2xl tracking-tighter text-slate-900 uppercase italic">Snapper.</span>
+            <span className="font-black text-2xl tracking-tighter text-slate-900 uppercase italic">Design Snapper.</span>
           </div>
 
           {session && user ? (
@@ -444,7 +444,7 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
       <section className="relative z-10 max-w-7xl mx-auto px-6 py-20 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif]">
         <div className="mb-16">
           <h2 className="text-5xl md:text-6xl font-black mb-6 tracking-tight text-slate-900 leading-tight">
-            Design review,<br />fully automated.
+            Design Snapper:<br />Design review, automated.
           </h2>
         </div>
 
@@ -648,8 +648,8 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
           {[
             {
               icon: <ShieldCheck className="w-6 h-6 text-green-500" />,
-              title: "Accessibility Audit",
-              desc: "Deep scan for WCAG 2.1 compliance, contrast ratios, and touch target optimization."
+              title: "Design Snapper Accessibility Audit",
+              desc: "Deep scan for WCAG 2.1 compliance, contrast ratios, and touch target optimization with Design Snapper."
             },
             {
               icon: <BarChart3 className="w-6 h-6 text-primary" />,
@@ -683,9 +683,9 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
       <section className="relative z-10 max-w-7xl mx-auto px-6 pb-32">
         <div className="relative p-16 bg-gradient-to-b from-slate-50 to-white border border-slate-200 rounded-[48px] overflow-hidden text-center shadow-sm">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
-          <h2 className="text-4xl md:text-6xl font-black mb-8 tracking-tight text-slate-900">Ready to fix your UI?</h2>
+          <h2 className="text-4xl md:text-6xl font-black mb-8 tracking-tight text-slate-900">Ready for a Design Snapper audit?</h2>
           <p className="text-lg text-slate-500 mb-12 max-w-xl mx-auto font-medium">
-            Stop guessing. Start auditing. Get your first professional design report for free in less than 30 seconds.
+            Stop guessing. Start auditing. Get your first professional Design Snapper report for free in less than 30 seconds.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button size="lg" onClick={() => onNavigate('upload')} className="h-14 px-12 text-lg bg-slate-900 text-white hover:bg-slate-800 rounded-full font-bold shadow-xl transition-all active:scale-95">
