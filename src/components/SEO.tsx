@@ -7,10 +7,10 @@ interface SEOProps {
   url?: string;
 }
 
-export function SEO({ 
-  title = "Design Snapper - AI Design Audit Tool", 
-  description = "Audit your designs with Tech Audit and Influencer Chat modes. Get instant feedback on Accessibility, UX, and more from expert personas powered by Claude 3.5 Sonnet.",
-  image = "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=1200&auto=format&fit=crop",
+export function SEO({
+  title = "Design Snapper - The Ultimate AI Design Audit Tool",
+  description = "Design Snapper is the premier tool for designers to snap, annotate, and share their work. Get instant feedback on Accessibility, UX, and more from expert personas.",
+  image = "https://www.designsnapper.com/og-image.jpg",
   url = window.location.href
 }: SEOProps) {
   const siteTitle = title === "Design Snapper - AI Design Audit Tool" ? title : `${title} | Design Snapper`;
@@ -23,7 +23,7 @@ export function SEO({
       <meta name="description" content={description} />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
-      
+
       {/* Open Graph / Facebook */}
       <meta property="og:type" content="website" />
       <meta property="og:url" content={url} />

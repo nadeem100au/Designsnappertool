@@ -7,7 +7,7 @@ import type { Session } from '@supabase/supabase-js';
 interface UserProfileMenuProps {
     session: Session | null;
     onSignOut?: () => void;
-    onNavigate?: (screen: string) => void;
+    onNavigate?: (screen: any) => void;
 }
 
 export function UserProfileMenu({ session, onSignOut, onNavigate }: UserProfileMenuProps) {

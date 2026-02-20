@@ -1,9 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { Upload, Zap, Target, CheckCircle, ArrowRight, ShieldCheck, Cpu, LayoutPanelTop, BarChart3, Star, Sparkles, Pin, Settings, FileText, AlertCircle, ChevronDown, LogOut, User } from 'lucide-react';
+import { Target, CheckCircle, ArrowRight, ShieldCheck, LayoutPanelTop, BarChart3, Sparkles, Pin, Settings, FileText, AlertCircle, Zap } from 'lucide-react';
 
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import type { Session } from '@supabase/supabase-js';
 import { UserProfileMenu } from './UserProfileMenu';
@@ -349,10 +347,6 @@ function ProductShowcase() {
 export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps) {
   const user = session?.user;
 
-  const avatarUrl = user?.user_metadata?.avatar_url;
-  const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
-  const firstName = fullName.split(' ')[0];
-
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-slate-900 selection:bg-primary/10 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif] overflow-x-hidden">
       {/* Background Elements */}
@@ -422,10 +416,10 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
             <span className="uppercase flex items-center gap-2"><Sparkles className="w-4 h-4" />Vision AI Audit Engine v4.0</span>
           </motion.div>
           <motion.h1 variants={itemVariants} className="text-7xl md:text-9xl font-black mb-10 leading-[0.95] tracking-tighter text-slate-900">
-            Design Snapper.<br /><span className="text-slate-300">Better Audits.</span>
+            Design Snapper.<br /><span className="text-slate-300">The #1 Design Audit Tool.</span>
           </motion.h1>
           <motion.p variants={itemVariants} className="text-2xl text-slate-500 mb-14 max-w-3xl mx-auto leading-relaxed font-medium">
-            Stop manual UI reviews. Upload any screenshot and get 18-point contrast & UX feedback in seconds.
+            Stop manual UI reviews. Use <strong>Design Snapper</strong> to upload any screenshot and get 18-point contrast & UX feedback in seconds.
           </motion.p>
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-5 justify-center items-center">
             <Button size="lg" onClick={() => onNavigate('upload')} className="h-16 px-12 text-xl bg-slate-900 hover:bg-slate-800 text-white rounded-[24px] font-black shadow-2xl transition-all hover:scale-[1.02] active:scale-95 group">
