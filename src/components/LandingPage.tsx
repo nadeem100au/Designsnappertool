@@ -1,5 +1,5 @@
 import { Button } from './ui/button';
-import { Target, CheckCircle, ArrowRight, ShieldCheck, LayoutPanelTop, BarChart3, Sparkles, Pin, Settings, FileText, AlertCircle, Zap } from 'lucide-react';
+import { Target, CheckCircle, ArrowRight, ShieldCheck, LayoutPanelTop, BarChart3, Sparkles, Pin, Settings, FileText, AlertCircle, Zap, Monitor, Apple } from 'lucide-react';
 
 import { motion } from 'motion/react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -676,6 +676,79 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
               </p>
             </motion.div>
           ))}
+        </div>
+      </section>
+      {/* Download Section */}
+      <section id="downloads" className="relative z-10 max-w-7xl mx-auto px-6 py-24 border-t border-slate-100">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 border border-primary/10 text-primary rounded-full text-[10px] font-black tracking-widest uppercase mb-6">
+              Desktop Experience
+            </div>
+            <h2 className="text-5xl font-black mb-8 tracking-tight text-slate-900 leading-tight">
+              Design Snapper<br />on your Desktop.
+            </h2>
+            <p className="text-lg text-slate-500 mb-10 leading-relaxed font-medium max-w-lg">
+              Experience lightning-fast performance and seamless workflow integration with our native desktop apps. Built for professional designers who need speed.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button size="lg" className="h-16 px-8 bg-slate-900 text-white hover:bg-slate-800 rounded-2xl font-black flex items-center gap-3 group transition-all active:scale-95">
+                <Apple className="w-6 h-6" />
+                <div className="flex flex-col items-start leading-none gap-1">
+                  <span className="text-[10px] uppercase tracking-widest opacity-60">Coming Soon for</span>
+                  <span className="text-base font-black">macOS</span>
+                </div>
+              </Button>
+              <Button variant="outline" size="lg" className="h-16 px-8 border-slate-200 hover:bg-slate-50 text-slate-900 rounded-2xl font-black flex items-center gap-3 group transition-all active:scale-95" onClick={() => window.open('https://github.com/nadeem100au/Designsnappertool', '_blank')}>
+                <Monitor className="w-6 h-6 text-slate-400 group-hover:text-slate-900" />
+                <div className="flex flex-col items-start leading-none gap-1">
+                  <span className="text-[10px] uppercase tracking-widest opacity-60">Coming Soon for</span>
+                  <span className="text-base font-black">Windows</span>
+                </div>
+              </Button>
+            </div>
+            <p className="mt-6 text-xs text-slate-400 font-bold uppercase tracking-widest">
+              * Install as PWA to use right now on any OS
+            </p>
+          </div>
+          <div className="relative">
+            <div className="absolute inset-0 bg-primary/5 rounded-[40px] blur-3xl opacity-50" />
+            <div className="relative bg-white border border-slate-200 rounded-[40px] shadow-2xl p-4 overflow-hidden">
+              <div className="bg-slate-50 rounded-[32px] aspect-video flex items-center justify-center p-8">
+                <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-6 flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 bg-red-400/20 border border-red-400/30 rounded-full" />
+                      <div className="w-2.5 h-2.5 bg-yellow-400/20 border border-yellow-400/30 rounded-full" />
+                      <div className="w-2.5 h-2.5 bg-green-400/20 border border-green-400/30 rounded-full" />
+                    </div>
+                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Design Snapper Desktop</span>
+                  </div>
+                  <div className="h-32 bg-slate-50 rounded-xl border border-slate-100 border-dashed flex items-center justify-center">
+                    <Sparkles className="w-8 h-8 text-primary/10" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 w-3/4 bg-slate-100 rounded-full" />
+                    <div className="h-3 w-1/2 bg-slate-50 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Floaties */}
+            <motion.div
+              animate={{ y: [0, -10, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-6 -right-6 bg-white shadow-2xl rounded-2xl p-4 border border-slate-100 flex items-center gap-4 z-20"
+            >
+              <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-tight">Status</p>
+                <p className="text-xs font-bold text-slate-900 leading-none">Native Optimized</p>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
