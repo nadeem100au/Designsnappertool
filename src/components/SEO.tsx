@@ -14,6 +14,29 @@ export function SEO({
   url = window.location.href
 }: SEOProps) {
   const siteTitle = title === "Design Snapper - AI Design Audit Tool" ? title : `${title} | Design Snapper`;
+  const canonicalUrl = url.split('?')[0].split('#')[0]; // Clean URL for canonical
+
+  const schemaData = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Design Snapper",
+    "alternateName": "DesignSnapper",
+    "url": "https://www.designsnapper.com",
+    "logo": "https://www.designsnapper.com/favicon.png",
+    "description": description,
+    "applicationCategory": "DesignApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0.00",
+      "priceCurrency": "USD"
+    },
+    "author": {
+      "@type": "Organization",
+      "name": "Design Snapper Team",
+      "url": "https://www.designsnapper.com"
+    }
+  };
 
   return (
     <Helmet>
@@ -23,6 +46,12 @@ export function SEO({
       <meta name="description" content={description} />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
+      <link rel="canonical" href={canonicalUrl} />
+
+      {/* Structured Data */}
+      <script type="application/ld+json">
+        {JSON.stringify(schemaData)}
+      </script>
 
       {/* Open Graph / Facebook */}
       <meta property="og:type" content="website" />
