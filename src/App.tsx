@@ -192,6 +192,7 @@ export default function App() {
         case '/library': setCurrentScreen('influencer-library'); break;
         case '/chat': setCurrentScreen('chat'); break;
         case '/pricing': setCurrentScreen('pricing'); break;
+        case '/contact': setCurrentScreen('contact'); break;
         case '/complete-profile':
           if (currentSession && !currentSession.user.user_metadata?.username) {
             setCurrentScreen('complete-profile');
@@ -199,7 +200,6 @@ export default function App() {
             setCurrentScreen('landing');
           }
           break;
-        case '/contact': setCurrentScreen('contact'); break;
         default: setCurrentScreen('landing');
       }
       setIsLoading(false);
@@ -291,7 +291,7 @@ export default function App() {
       case 'pricing':
         return <PricingPage onNavigate={navigateToScreen} session={session} />;
       case 'contact':
-        return <ContactPage onNavigate={navigateToScreen} />;
+        return <ContactPage onNavigate={navigateToScreen} session={session} onSignOut={handleSignOut} />;
       default:
         return <LandingPage onNavigate={navigateToScreen} />;
     }

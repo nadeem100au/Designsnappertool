@@ -1,559 +1,500 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
-import { Target, ArrowRight, Mail, Phone, MessageSquare, User, CheckCircle, Clock, Zap, Shield } from 'lucide-react';
+import { Target, ArrowRight, ArrowLeft, Mail, ChevronDown, Check, X, Shield, Clock, Zap, Rocket, Crown, Globe } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import type { Session } from '@supabase/supabase-js';
+import { UserProfileMenu } from './UserProfileMenu';
 import { Button } from './ui/button';
-import svgPaths from '../imports/svg-pk3tb1s8uq';
+import { useRazorpay } from '../hooks/useRazorpay';
+import { toast } from 'sonner';
 
 interface ContactPageProps {
-    onNavigate: (screen: any) => void;
-    onHistoryToggle?: () => void;
+    onNavigate: (screen: 'landing' | 'upload' | 'dashboard' | 'report' | 'auth' | 'pricing' | 'contact', data?: any) => void;
+    session?: Session | null;
+    onSignOut?: () => void;
 }
 
-const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-        opacity: 1,
-        transition: { staggerChildren: 0.08 },
-    },
-};
+type Region = 'India' | 'International';
+const REGIONS: Region[] = ['India', 'International'];
 
-const itemVariants = {
-    hidden: { y: 24, opacity: 0 },
-    visible: {
-        y: 0,
-        opacity: 1,
-        transition: { type: 'spring' as const, stiffness: 100, damping: 15 },
-    },
-};
+interface TierFeature {
+    text: string;
+    bold?: boolean;
+    enabled?: boolean;
+    exclusive?: boolean;
+}
 
-export function ContactPage({ onNavigate, onHistoryToggle }: ContactPageProps) {
-    const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
-    const [focusedField, setFocusedField] = useState<string | null>(null);
-    const [submitted, setSubmitted] = useState(false);
-    const [loading, setLoading] = useState(false);
+interface PricingTier {
+    id: string;
+    name: string;
+    price: string;
+    priceSubtext: string;
+    description: string;
+    features: TierFeature[];
+    icon: React.ReactNode;
+    buttonText: string;
+    isFree?: boolean;
+    isPopular?: boolean;
+    isBestValue?: boolean;
+    bgIcon: string;
+    borderColor: string;
+    buttonStyle: string;
+}
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+export function ContactPage({ onNavigate, session, onSignOut }: ContactPageProps) {
+    const user = session?.user;
+    const [region, setRegion] = useState<Region>('India');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const { processPayment, loading: paymentLoading } = useRazorpay();
+
+    const isIndia = region === 'India';
+
+    const [formData, setFormData] = useState({
+        fullName: '',
+        email: '',
+        phone: '',
+        message: ''
+    });
+
+    const tiers: PricingTier[] = [
+        {
+            id: 'starter',
+            name: 'Starter',
+            price: 'Free',
+            priceSubtext: 'forever',
+            description: "Try Design Snapper risk-free",
+            features: [
+                { text: '3 Free Design Audits' },
+                { text: 'AI-Powered Analysis' },
+                { text: 'WCAG Contrast Checks' },
+                { text: 'Heuristic Evaluation' },
+                { text: 'Expert Persona Feedback', enabled: false },
+                { text: 'Unlimited Audits', enabled: false },
+            ],
+            icon: <Zap className="w-6 h-6 text-slate-400" />,
+            buttonText: 'Current Plan',
+            isFree: true,
+            bgIcon: 'bg-slate-100',
+            borderColor: 'border-slate-100',
+            buttonStyle: 'bg-slate-50 text-slate-400 cursor-default',
+        },
+        {
+            id: 'pro',
+            name: 'Pro',
+            price: isIndia ? '₹500' : '$9',
+            priceSubtext: 'one-time',
+            description: "Unlock the full power of Snapper",
+            features: [
+                { text: '30 Design Audit Credits' },
+                { text: `~${isIndia ? '₹16.67' : '$0.30'} per audit` },
+                { text: 'All AI Models (incl. Claude Opus)' },
+                { text: 'Premium Expert Personas' },
+                { text: 'Full Audit History' },
+                { text: 'Priority Processing' },
+            ],
+            icon: <Rocket className="w-6 h-6 text-blue-600" />,
+            buttonText: 'Upgrade to Pro',
+            isPopular: true,
+            bgIcon: 'bg-blue-600/10',
+            borderColor: 'border-blue-600',
+            buttonStyle: 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20',
+        },
+        {
+            id: 'elite',
+            name: 'Elite',
+            price: 'Custom audits',
+            priceSubtext: '',
+            description: "Maximum power & support",
+            features: [
+                { text: 'Unlimited Design Audits' },
+                { text: 'Custom Audit Criteria' },
+                { text: 'Team Collaboration' },
+                { text: 'White-label Reports' },
+                { text: '24/7 Priority Support' },
+            ],
+            icon: <Crown className="w-6 h-6 border-b" style={{ color: '#f59e0b' }} />,
+            buttonText: 'Contact Us',
+            isBestValue: true,
+            bgIcon: '',
+            borderColor: 'border-slate-100',
+            buttonStyle: 'bg-slate-900 hover:bg-black text-white',
+        }
+    ];
+
+    const selectedTierId = 'pro';
+
+    const handleUpgrade = (tierId: string) => {
+        if (tierId === 'starter') return;
+        if (tierId === 'elite') {
+            // Scroll to top to contact form since we are already on the contact page
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
+        if (!session) {
+            toast.error('Please sign in to upgrade.', {
+                action: { label: 'Sign In', onClick: () => onNavigate('auth') },
+            });
+            return;
+        }
+
+        const amount = isIndia ? 500 : 9;
+        const currency = isIndia ? 'INR' : 'USD';
+
+        processPayment({
+            amount,
+            currency,
+            accessToken: session.access_token,
+            onSuccess: () => {
+                toast.success('🎉 Welcome to Pro! You now have 30 credits.');
+                onNavigate('upload');
+            },
+            onError: (error: any) => {
+                console.error('Payment failed:', error);
+            },
+        });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
-        await new Promise(res => setTimeout(res, 1200));
-        setLoading(false);
-        setSubmitted(true);
+        if (!formData.fullName || !formData.email || !formData.message) {
+            toast.error('Please fill in all required fields.');
+            return;
+        }
+        toast.success('Message sent successfully! We will get back to you soon.');
+        setFormData({ fullName: '', email: '', phone: '', message: '' });
     };
-
-    const scrollToForm = (prefill?: string) => {
-        if (prefill) setForm(prev => ({ ...prev, message: prefill }));
-        document.getElementById('contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    };
-
-    const inputBase =
-        'w-full bg-slate-50 border rounded-2xl px-5 py-4 text-sm font-medium text-slate-900 placeholder-slate-400 outline-none transition-all duration-200';
-    const inputFocused = (field: string) =>
-        focusedField === field
-            ? 'border-[#0066ff] shadow-[0_0_0_3px_rgba(0,102,255,0.12)] bg-white'
-            : 'border-slate-200 hover:border-slate-300';
 
     return (
-        <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif] overflow-x-hidden">
-            {/* Navbar */}
+        <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-['Inter',_'Helvetica_Neue',_Helvetica,_Arial,_sans-serif] overflow-x-hidden flex flex-col relative">
+
+            {/* Navigation matching LandingPage */}
             <motion.nav
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className="relative z-50 border-b border-slate-100/50 bg-white/70 backdrop-blur-2xl sticky top-0"
+                className="relative z-50 bg-[#FDFDFD]"
             >
                 <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
-                    <button
-                        onClick={() => onNavigate('landing')}
-                        className="flex items-center gap-3 group"
-                    >
-                        <div className="w-10 h-10 bg-slate-900 rounded-[14px] flex items-center justify-center shadow-xl rotate-[-2deg] group-hover:rotate-0 transition-transform">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigate('landing')}>
+                        <div className="w-10 h-10 bg-slate-900 rounded-[14px] flex items-center justify-center shadow-xl rotate-[-2deg]">
                             <Target className="w-6 h-6 text-white" />
                         </div>
-                        <span className="font-black text-2xl tracking-tighter text-slate-900 uppercase italic">Snapper.</span>
-                    </button>
-                    <div className="flex items-center gap-4">
-                        <Button
-                            variant="ghost"
-                            onClick={onHistoryToggle}
-                            className="text-slate-900 font-black text-xs uppercase tracking-widest flex items-center gap-2"
-                        >
-                            <Clock className="w-4 h-4" />
-                            History
-                        </Button>
-                        <Button variant="ghost" className="text-slate-900 font-black text-xs uppercase tracking-widest">
-                            Sign In
-                        </Button>
-                        <Button
-                            onClick={() => onNavigate('upload')}
-                            className="bg-slate-900 text-white hover:bg-slate-800 font-black px-8 py-6 shadow-2xl rounded-[18px] transition-all active:scale-95 text-xs uppercase tracking-widest"
-                        >
-                            Get Started
-                        </Button>
+                        <span className="font-black text-2xl tracking-tighter text-slate-900 uppercase italic">Design Snapper.</span>
                     </div>
+
+                    {session && user ? (
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => onNavigate('dashboard')} className="text-slate-600 hover:text-slate-900 font-bold text-xs uppercase tracking-widest transition-colors cursor-pointer flex items-center gap-2">
+                                <Clock className="w-4 h-4" /> History
+                            </button>
+                            <Button
+                                onClick={() => onNavigate('upload')}
+                                className="bg-slate-900 text-white hover:bg-slate-800 font-black px-8 py-6 shadow-2xl rounded-[18px] transition-all active:scale-95 text-xs uppercase tracking-widest"
+                            >
+                                Upload Design
+                            </Button>
+                            <UserProfileMenu session={session} onSignOut={onSignOut} onNavigate={onNavigate} />
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => onNavigate('dashboard')} className="text-slate-600 hover:text-slate-900 font-bold text-xs uppercase tracking-widest transition-colors cursor-pointer flex items-center gap-2">
+                                <Clock className="w-4 h-4" /> History
+                            </button>
+                            <Button variant="ghost" className="text-slate-900 font-black text-xs uppercase tracking-widest" onClick={() => onNavigate('auth')}>Sign In</Button>
+                            <Button
+                                onClick={() => onNavigate('upload')}
+                                className="bg-slate-900 text-white hover:bg-slate-800 font-black px-8 py-6 shadow-2xl rounded-[18px] transition-all active:scale-95 text-xs uppercase tracking-widest"
+                            >
+                                Get Started
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </motion.nav>
 
-            {/* Hero */}
-            <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-10">
-                <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="text-center"
-                >
-                    <motion.div
-                        variants={itemVariants}
-                        className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#0066ff]/10 border border-[#0066ff]/20 text-[#0066ff] rounded-full text-xs font-black tracking-widest mb-8 shadow-sm"
-                    >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span className="uppercase">Get In Touch</span>
-                    </motion.div>
-                    <motion.h1
-                        variants={itemVariants}
-                        className="text-6xl md:text-8xl font-black mb-6 leading-[0.95] tracking-tighter text-slate-900"
-                    >
-                        Let's talk<br />
-                        <span className="text-slate-300">design audits.</span>
-                    </motion.h1>
-                    <motion.p
-                        variants={itemVariants}
-                        className="text-lg text-slate-500 max-w-xl mx-auto font-medium leading-relaxed"
-                    >
-                        Whether you want a custom plan, have a question, or just want to see a live demo — we're here. Reach out and we'll reply within 2 hours.
-                    </motion.p>
-                </motion.div>
-            </section>
-
-            {/* Main Content Grid */}
-            <section className="relative z-10 max-w-7xl mx-auto px-6 pb-24">
-                <div className="grid lg:grid-cols-2 gap-16 items-start">
-
-                    {/* LEFT — Contact Form */}
-                    <motion.div
-                        id="contact-form"
-                        initial={{ opacity: 0, x: -30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3, duration: 0.6 }}
-                        className="bg-white border border-slate-100 rounded-[32px] p-10 shadow-[0_20px_60px_-16px_rgba(0,0,0,0.08)]"
-                    >
-                        {submitted ? (
-                            <div className="flex flex-col items-center justify-center text-center py-16 gap-6">
-                                <motion.div
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-                                    className="w-20 h-20 bg-green-50 border-2 border-green-200 rounded-full flex items-center justify-center"
-                                >
-                                    <CheckCircle className="w-10 h-10 text-green-500" />
-                                </motion.div>
-                                <h3 className="text-3xl font-black text-slate-900 tracking-tight">Message Sent!</h3>
-                                <p className="text-slate-500 font-medium max-w-xs">
-                                    Thanks for reaching out. We'll get back to you within 2 hours on business days.
-                                </p>
-                                <Button
-                                    onClick={() => { setSubmitted(false); setForm({ name: '', email: '', phone: '', message: '' }); }}
-                                    variant="outline"
-                                    className="mt-2 rounded-2xl font-black text-xs uppercase tracking-widest border-slate-200"
-                                >
-                                    Send Another
-                                </Button>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mb-8">
-                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-1">Send Us a Message</h2>
-                                </div>
-                                <form onSubmit={handleSubmit} className="space-y-5">
-                                    {/* Name */}
-                                    <div className="relative">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                                            Full Name <span className="text-[#0066ff]">*</span>
-                                        </label>
-                                        <div className="relative">
-                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                            <input
-                                                type="text"
-                                                name="name"
-                                                required
-                                                value={form.name}
-                                                onChange={handleChange}
-                                                onFocus={() => setFocusedField('name')}
-                                                onBlur={() => setFocusedField(null)}
-                                                placeholder="Aarav Mehta"
-                                                className={`${inputBase} ${inputFocused('name')} pl-11`}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Email */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                                            Email Address <span className="text-[#0066ff]">*</span>
-                                        </label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                required
-                                                value={form.email}
-                                                onChange={handleChange}
-                                                onFocus={() => setFocusedField('email')}
-                                                onBlur={() => setFocusedField(null)}
-                                                placeholder="aarav@company.com"
-                                                className={`${inputBase} ${inputFocused('email')} pl-11`}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Phone */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                                            Phone Number
-                                        </label>
-                                        <div className="relative">
-                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={form.phone}
-                                                onChange={handleChange}
-                                                onFocus={() => setFocusedField('phone')}
-                                                onBlur={() => setFocusedField(null)}
-                                                placeholder="+91 98765 43210"
-                                                className={`${inputBase} ${inputFocused('phone')} pl-11`}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Message */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">
-                                            Message <span className="text-[#0066ff]">*</span>
-                                        </label>
-                                        <textarea
-                                            name="message"
-                                            required
-                                            rows={5}
-                                            value={form.message}
-                                            onChange={handleChange}
-                                            onFocus={() => setFocusedField('message')}
-                                            onBlur={() => setFocusedField(null)}
-                                            placeholder="Tell us about your project, team size, or what you'd like to achieve with Design Snapper..."
-                                            className={`${inputBase} ${inputFocused('message')} resize-none`}
-                                        />
-                                    </div>
-
-                                    {/* Submit */}
-                                    <div className="pt-2">
-                                        <Button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="w-full h-14 bg-slate-900 text-white hover:bg-slate-800 rounded-[18px] font-black text-sm uppercase tracking-widest shadow-xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:scale-100 group"
-                                        >
-                                            {loading ? (
-                                                <span className="flex items-center gap-2">
-                                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                                                    </svg>
-                                                    Sending…
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-2">
-                                                    Send Message
-                                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                                </span>
-                                            )}
-                                        </Button>
-                                    </div>
-
-                                    <p className="text-[10px] text-slate-400 font-medium text-center pt-1">
-                                        <Shield className="w-3 h-3 inline mr-1 -mt-0.5" />
-                                        We never share your data. Average reply time: <span className="text-slate-600 font-bold">under 2 hours.</span>
-                                    </p>
-                                </form>
-                            </>
-                        )}
-                    </motion.div>
-
-                    {/* RIGHT — Info + Quick contact */}
-                    <motion.div
-                        initial={{ opacity: 0, x: 30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.4, duration: 0.6 }}
-                        className="space-y-6"
-                    >
-                        {/* Email card only */}
-                        <div className="flex items-start gap-5 p-6 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#0066ff]/20 transition-all">
-                            <div className="w-10 h-10 bg-[#0066ff]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                                <Mail className="w-5 h-5 text-[#0066ff]" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Email</p>
-                                <p className="text-base font-black text-slate-900">designsnapper100@gmail.com</p>
-                                <p className="text-xs text-slate-400 font-medium mt-0.5">Replies within 2 business hours</p>
-                            </div>
-                        </div>
-
-                        {/* Audit CTA card */}
-                        <div className="p-6 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl text-white relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#0066ff]/20 rounded-full blur-2xl -translate-y-8 translate-x-8" />
-                            <div className="relative z-10">
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#0066ff]/20 border border-[#0066ff]/30 rounded-full text-[9px] font-black text-[#0066ff] uppercase tracking-widest mb-4">
-                                    <Zap className="w-3 h-3" /> Free First Audit
-                                </div>
-                                <h3 className="text-xl font-black mb-2 tracking-tight">Try before you buy</h3>
-                                <p className="text-slate-400 text-sm font-medium mb-5 leading-relaxed">
-                                    Upload any design and get a full 15-principle AI audit — completely free, no credit card required.
-                                </p>
-                                <Button
-                                    onClick={() => onNavigate('upload')}
-                                    className="h-11 px-8 bg-[#0066ff] hover:bg-[#0052cc] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 group"
-                                >
-                                    Start Free Audit <ArrowRight className="w-3.5 h-3.5 ml-2 group-hover:translate-x-1 transition-transform" />
-                                </Button>
-                            </div>
-                        </div>
-                    </motion.div>
+            {/* Hero Section */}
+            <div className="max-w-3xl mx-auto px-6 pt-20 pb-12 text-center">
+                <div className="inline-flex items-center justify-center gap-2 px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-black tracking-widest uppercase mb-6">
+                    <Mail className="w-3.5 h-3.5" />
+                    Get In Touch
                 </div>
-            </section>
+                <h1 className="text-5xl md:text-7xl font-black text-slate-900 tracking-tighter mb-6 leading-[1.1]">
+                    Let's talk <span className="text-slate-300">design audits.</span>
+                </h1>
+                <p className="text-lg text-slate-500 font-medium max-w-xl mx-auto leading-relaxed">
+                    Whether you want a custom plan, have a question, or just want to see a live demo — we're here. Reach out and we'll reply within 2 hours.
+                </p>
+            </div>
 
-            {/* Pricing Section */}
-            <section className="relative z-10 bg-[#f8fafc] border-y border-slate-100 py-24">
-                <div className="max-w-7xl mx-auto px-6">
-                    <motion.div
-                        initial={{ opacity: 0, y: 24 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6 }}
-                        className="text-center mb-16"
-                    >
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#0066ff]/10 border border-[#0066ff]/20 text-[#0066ff] rounded-full text-xs font-black tracking-widest mb-6">
-                            <Zap className="w-3.5 h-3.5" />
-                            <span className="uppercase">Pricing — All in ₹ INR</span>
+            {/* Contact Grid layout */}
+            <div className="max-w-6xl mx-auto px-6 pb-32 grid grid-cols-1 lg:grid-cols-2 gap-12 w-full">
+                {/* Left Col: Form */}
+                <div className="bg-white rounded-[32px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] border border-slate-100 p-8 md:p-12 h-fit">
+                    <h2 className="text-2xl font-black text-slate-900 mb-8">Send Us a Message</h2>
+
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Full Name <span className="text-primary">*</span></label>
+                            <div className="relative flex items-center">
+                                <span className="absolute left-4 text-slate-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4出0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="Aarav Mehta"
+                                    value={formData.fullName}
+                                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                                    className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-12 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                                    required
+                                />
+                            </div>
                         </div>
-                        <h2 className="text-4xl md:text-6xl font-black mb-5 tracking-tighter text-slate-900">
-                            Simple, transparent<br />pricing.
-                        </h2>
-                        <p className="text-[#90a1b9] font-medium max-w-lg mx-auto">
-                            No hidden fees. Cancel anytime. One-time payment for Pro. Prices in Indian Rupees.
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Email Address <span className="text-primary">*</span></label>
+                            <div className="relative flex items-center">
+                                <span className="absolute left-4 text-slate-400">
+                                    <Mail className="w-4 h-4" />
+                                </span>
+                                <input
+                                    type="email"
+                                    placeholder="aarav@company.com"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-12 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Phone Number</label>
+                            <div className="relative flex items-center">
+                                <span className="absolute left-4 text-slate-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                </span>
+                                <input
+                                    type="tel"
+                                    placeholder="+91 98765 43210"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-12 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Message <span className="text-primary">*</span></label>
+                            <textarea
+                                placeholder="Tell us about your project, team size, or what you'd like to achieve with Design Snapper..."
+                                value={formData.message}
+                                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                                className="w-full h-32 bg-[#FAFAFA] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 resize-none"
+                                required
+                            />
+                        </div>
+
+                        <Button type="submit" className="w-full h-14 bg-slate-900 text-white rounded-[14px] font-black text-xs tracking-widest uppercase mt-4 shadow-xl shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all">
+                            Send Message <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                        <p className="text-[10px] text-center text-slate-400 font-medium">
+                            We never share your data. Average reply time: <strong className="text-slate-600 font-bold">under 2 hours.</strong>
                         </p>
-                    </motion.div>
+                    </form>
+                </div>
 
-                    <div className="grid md:grid-cols-3 gap-6 items-start">
-
-                        {/* STARTER */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 32 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0, duration: 0.5 }}
-                            className="bg-white flex flex-col gap-[21px] p-[30px] rounded-[40px] border-2 border-[#f1f5f9] shadow-sm relative"
-                        >
-                            {/* Icon row */}
-                            <div className="flex items-center justify-between w-full">
-                                <div className="bg-[#f1f5f9] w-[42px] h-[42px] rounded-[14px] flex items-center justify-center">
-                                    <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
-                                        <path d={svgPaths.p9168200} stroke="#90A1B9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                    </svg>
-                                </div>
-                                <span className="font-black text-[10px] tracking-[1px] uppercase text-[#00a63e]">Active</span>
+                {/* Right Col: Cards */}
+                <div className="flex flex-col gap-6 lg:pt-8 w-full max-w-md mx-auto lg:mx-0">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col gap-1 items-start">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                                <Mail className="w-5 h-5" />
                             </div>
-
-                            {/* Heading */}
-                            <div className="w-full">
-                                <p className="font-black text-[21px] tracking-[-0.525px] uppercase text-[#0f172b] leading-[28px]">Starter</p>
-                                <div className="flex items-end gap-[7px]">
-                                    <span className="font-black text-[31.5px] text-[#0f172b] leading-[35px]">Free</span>
-                                    <span className="font-bold text-[12.3px] text-[#90a1b9] leading-[35px]">forever</span>
-                                </div>
-                                <p className="font-medium text-[10.5px] text-[#90a1b9] leading-[14px] mt-0.5">Try Design Snapper risk-free</p>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email</span>
+                                <a href="mailto:designsnapper100@gmail.com" className="text-sm font-black text-slate-900 hover:text-primary transition-colors">designsnapper100@gmail.com</a>
+                                <span className="text-[10px] font-medium text-slate-400 mt-0.5">Replies within 2 business hours</span>
                             </div>
+                        </div>
+                    </div>
 
-                            {/* Features */}
-                            <div className="flex flex-col gap-[14px] pt-[7px] w-full">
-                                {[
-                                    { text: '3 Free Design Audits', color: '#0f172b', check: true },
-                                    { text: 'AI-Powered Analysis', color: '#45556c', check: true },
-                                    { text: 'WCAG Contrast Checks', color: '#45556c', check: true },
-                                    { text: 'Heuristic Evaluation', color: '#45556c', check: true },
-                                ].map(f => (
-                                    <div key={f.text} className="flex items-start gap-[10.5px] w-full">
-                                        <div className="w-[17.5px] h-[17.5px] rounded-full bg-[#f8fafc] flex items-center justify-center flex-shrink-0 mt-[1.75px]">
-                                            <svg width="10.5" height="10.5" viewBox="0 0 10.5 10.5" fill="none">
-                                                <path d={svgPaths.p24759e00} stroke="#0F172B" strokeLinecap="round" strokeLinejoin="round" strokeWidth="0.875" />
-                                            </svg>
-                                        </div>
-                                        <span className="font-medium text-[12.3px] leading-[17.5px]" style={{ color: f.color }}>{f.text}</span>
-                                    </div>
-                                ))}
-                                {/* Dimmed / crossed feature */}
-                                <div className="flex items-start gap-[10.5px] w-full opacity-50">
-                                    <div className="w-[17.5px] h-[17.5px] rounded-full bg-[#f1f5f9] flex items-center justify-center flex-shrink-0 mt-[1.75px]">
-                                        <svg width="10.5" height="10.5" viewBox="0 0 10.5 10.5" fill="none">
-                                            <path d="M7.875 2.625L2.625 7.875" stroke="#90A1B9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="0.875" />
-                                            <path d="M2.625 2.625L7.875 7.875" stroke="#90A1B9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="0.875" />
-                                        </svg>
-                                    </div>
-                                    <span className="font-medium text-[12.3px] text-[#45556c] leading-[17.5px]">Expert Persona Feedback</span>
-                                </div>
+                    <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden shadow-2xl">
+                        {/* Decoration */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2" />
+                        <div className="relative z-10 flex flex-col items-start gap-4">
+                            <div className="px-3 py-1 bg-white/10 text-primary border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest backdrop-blur-sm">
+                                Free First Audit
                             </div>
-
-                            {/* Button */}
-                            <div className="bg-[#f8fafc] h-[49px] rounded-[14px] w-full flex items-center justify-center">
-                                <span className="font-black text-[10.5px] text-[#90a1b9] tracking-[1.05px] uppercase">Current Plan</span>
-                            </div>
-                        </motion.div>
-
-                        {/* PRO */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 32 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.1, duration: 0.5 }}
-                            className="relative flex flex-col items-start justify-center"
-                        >
-                            {/* Most Popular badge */}
-                            <div className="absolute left-1/2 -translate-x-1/2 -top-[10.5px] z-10 bg-[#155dfc] px-[14px] py-[3.5px] rounded-full shadow-lg">
-                                <span className="font-black text-[10px] text-white tracking-[1px] uppercase whitespace-nowrap">Most Popular</span>
-                            </div>
-                            <div className="bg-white w-full flex flex-col gap-[21px] p-[30px] rounded-[40px] border-2 border-[#155dfc] shadow-[0px_20px_25px_-5px_rgba(0,0,0,0.1),0px_8px_10px_-6px_rgba(0,0,0,0.1)] relative">
-                                {/* Icon row */}
-                                <div className="flex items-center w-full">
-                                    <div className="w-[42px] h-[42px] rounded-[14px] flex items-center justify-center">
-                                        <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
-                                            <path d={svgPaths.p1748eff0} stroke="#155DFC" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                            <path d={svgPaths.pe353000} stroke="#155DFC" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                            <path d={svgPaths.p3f18a340} stroke="#155DFC" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                            <path d={svgPaths.pa920580} stroke="#155DFC" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                        </svg>
-                                    </div>
-                                </div>
-
-                                {/* Heading */}
-                                <div className="w-full">
-                                    <p className="font-black text-[21px] tracking-[-0.525px] uppercase text-[#0f172b] leading-[28px]">Pro</p>
-                                    <div className="flex items-end gap-[7px]">
-                                        <span className="font-black text-[31.5px] text-[#0f172b] leading-[35px]">₹500</span>
-                                        <span className="font-bold text-[12.3px] text-[#90a1b9] leading-[35px]">one-time</span>
-                                    </div>
-                                    <p className="font-medium text-[10.5px] text-[#90a1b9] leading-[14px] mt-0.5">Unlock the full power of Snapper</p>
-                                </div>
-
-                                {/* Features */}
-                                <div className="flex flex-col gap-[14px] pt-[7px] w-full">
-                                    {[
-                                        { text: '30 Design Audit Credits', color: '#0f172b' },
-                                        { text: '~₹16.67 per audit', color: '#0f172b' },
-                                        { text: 'All AI Models (incl. Claude Opus)', color: '#45556c' },
-                                        { text: 'Premium Expert Personas', color: '#45556c' },
-                                        { text: 'Full Audit History', color: '#45556c' },
-                                    ].map(f => (
-                                        <div key={f.text} className="flex items-start gap-[10.5px] w-full">
-                                            <div className="w-[17.5px] h-[17.5px] rounded-full bg-[#f8fafc] flex items-center justify-center flex-shrink-0 mt-[1.75px]">
-                                                <svg width="10.5" height="10.5" viewBox="0 0 10.5 10.5" fill="none">
-                                                    <path d={svgPaths.p24759e00} stroke="#0F172B" strokeLinecap="round" strokeLinejoin="round" strokeWidth="0.875" />
-                                                </svg>
-                                            </div>
-                                            <span className="font-medium text-[12.3px] leading-[17.5px]" style={{ color: f.color }}>{f.text}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Button */}
-                                <button
-                                    onClick={() => onNavigate('upload')}
-                                    className="bg-[#155dfc] h-[49px] rounded-[14px] w-full flex items-center justify-center shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] hover:bg-[#0052cc] transition-colors active:scale-95"
-                                >
-                                    <span className="font-black text-[10.5px] text-white tracking-[1.05px] uppercase">Upgrade to Pro</span>
-                                </button>
-                            </div>
-                        </motion.div>
-
-                        {/* ELITE */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 32 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.2, duration: 0.5 }}
-                            className="relative flex flex-col items-start justify-center"
-                        >
-                            {/* Custom badge */}
-                            <div className="absolute left-1/2 -translate-x-1/2 -top-[10.5px] z-10 bg-[#0f172b] px-[14px] py-[3.5px] rounded-full shadow-lg">
-                                <span className="font-black text-[10px] text-white tracking-[1px] uppercase whitespace-nowrap">Custom</span>
-                            </div>
-                            <div className="bg-white w-full flex flex-col gap-[21px] p-[30px] rounded-[40px] border-2 border-[#f1f5f9] shadow-sm relative">
-                                {/* Icon row */}
-                                <div className="flex items-center w-full">
-                                    <div className="bg-[rgba(245,158,11,0.1)] w-[42px] h-[42px] rounded-[14px] flex items-center justify-center">
-                                        <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
-                                            <path d={svgPaths.p2c136d00} stroke="#F59E0B" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                            <path d="M4.375 18.375H16.625" stroke="#F59E0B" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
-                                        </svg>
-                                    </div>
-                                </div>
-
-                                {/* Heading */}
-                                <div className="w-full">
-                                    <p className="font-extrabold text-[21px] tracking-[-0.525px] uppercase text-[#0f172b] leading-[28px]">Elite</p>
-                                    <span className="font-black text-[31.5px] text-[#0f172b] leading-[35px]">Custom audits</span>
-                                    <p className="font-medium text-[10.5px] text-[#90a1b9] leading-[14px] mt-0.5">Maximum power &amp; support</p>
-                                </div>
-
-                                {/* Features */}
-                                <div className="flex flex-col gap-[14px] pt-[7px] w-full">
-                                    {[
-                                        { text: 'Unlimited Design Audits', bold: false },
-                                        { text: 'Custom Audit Criteria', bold: false },
-                                        { text: 'Team Collaboration', bold: false },
-                                        { text: 'White-label Reports', bold: true },
-                                        { text: '24/7 Priority Support', bold: false },
-                                    ].map(f => (
-                                        <div key={f.text} className="flex items-start gap-[10.5px] w-full">
-                                            <div className="w-[17.5px] h-[17.5px] rounded-full bg-[#f8fafc] flex items-center justify-center flex-shrink-0 mt-[1.75px]">
-                                                <svg width="10.5" height="10.5" viewBox="0 0 10.5 10.5" fill="none">
-                                                    <path d={svgPaths.p24759e00} stroke="#0F172B" strokeLinecap="round" strokeLinejoin="round" strokeWidth="0.875" />
-                                                </svg>
-                                            </div>
-                                            <span className={`text-[12.3px] leading-[17.5px] text-[#0f172b] ${f.bold ? 'font-black' : 'font-medium'}`}>{f.text}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Button */}
-                                <button
-                                    onClick={() => scrollToForm("Hi, I'm interested in the Elite plan. Could you share more details about custom pricing and onboarding?")}
-                                    className="bg-[#0f172b] h-[49px] rounded-[14px] w-full flex items-center justify-center hover:bg-slate-800 transition-colors active:scale-95"
-                                >
-                                    <span className="font-black text-[10.5px] text-white tracking-[1.05px] uppercase">Contact Us</span>
-                                </button>
-                            </div>
-                        </motion.div>
-
+                            <h3 className="text-2xl font-black text-white">Try before you buy</h3>
+                            <p className="text-sm text-slate-400 font-medium leading-relaxed mb-4">
+                                Upload any design and get a full 18-principle AI audit — completely free, no credit card required.
+                            </p>
+                            <Button onClick={() => onNavigate('upload')} className="bg-primary text-white hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all w-full md:w-auto h-12 px-6 rounded-xl font-black text-xs uppercase tracking-widest">
+                                Start Free Audit <ArrowRight className="w-4 h-4 ml-2" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            </section>
+            </div>
 
-            {/* Footer */}
-            <footer className="relative z-10 border-t border-slate-100 bg-white pt-16 pb-10">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-slate-900 rounded-xl flex items-center justify-center">
+            {/* Pricing Section imported via the same style as PricingPage */}
+            <div className="w-full bg-[#FAFAFA] pt-24 pb-32 flex flex-col items-center">
+                {/* Header content similar to pricing */}
+                <div className="w-full max-w-4xl text-center mb-16 relative z-10 px-6">
+                    <div className="inline-flex items-center justify-center gap-2 px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-black tracking-widest uppercase mb-8">
+                        <Zap className="w-3.5 h-3.5" />
+                        Pricing — All in 1 tab
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-4">
+                        Simple, transparent <br /> pricing.
+                    </h2>
+                    <p className="text-[13px] font-medium text-slate-500 max-w-xl mx-auto leading-relaxed">
+                        No hidden fees. Cancel anytime. One-time payment for Pro. Prices in Indian Rupees.
+                    </p>
+
+                    <div className="flex flex-col items-center gap-6 mt-8">
+                        <div className="relative z-50">
+                            <button
+                                onClick={() => setDropdownOpen(!dropdownOpen)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all text-xs font-bold text-slate-600 cursor-pointer uppercase tracking-wider"
+                            >
+                                <Globe className="w-3.5 h-3.5 text-slate-400" />
+                                {region}
+                                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {dropdownOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50"
+                                    >
+                                        {REGIONS.map((r) => (
+                                            <button
+                                                key={r}
+                                                onClick={() => { setRegion(r); setDropdownOpen(false); }}
+                                                className={`w-full text-left px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${region === r
+                                                    ? 'bg-blue-600/5 text-blue-600'
+                                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                                                    }`}
+                                            >
+                                                {r}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Reused Cards block */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl items-stretch px-6">
+                    {tiers.map((tier) => (
+                        <motion.div
+                            key={tier.id}
+                            whileHover={{ y: -8 }}
+                            className="flex flex-col relative h-full"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                        >
+                            {/* Badges */}
+                            {tier.isPopular && (
+                                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-blue-600 shadow-lg whitespace-nowrap">
+                                    MOST POPULAR
+                                </div>
+                            )}
+                            {tier.isBestValue && (
+                                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-slate-900 shadow-lg whitespace-nowrap border border-slate-700">
+                                    CUSTOM
+                                </div>
+                            )}
+
+                            {/* Card Content */}
+                            <div className={`p-8 h-full rounded-[40px] border-2 transition-all flex flex-col items-start gap-6 relative group ${selectedTierId === tier.id
+                                ? 'border-blue-600 bg-white shadow-xl z-10'
+                                : 'border-slate-100 bg-white hover:border-slate-200 shadow-sm z-0'
+                                }`}>
+                                {/* Header */}
+                                <div className="flex items-center justify-between w-full">
+                                    <div
+                                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${tier.bgIcon}`}
+                                        style={tier.id === 'elite' ? { backgroundColor: 'rgba(245, 158, 11, 0.1)' } : {}}
+                                    >
+                                        {tier.icon}
+                                    </div>
+                                    {tier.id === 'starter' && (
+                                        <span className="text-[10px] font-black text-green-600 bg-green-600/10 px-3 py-1 rounded-full uppercase tracking-widest">Active</span>
+                                    )}
+                                </div>
+
+                                {/* Price & Name */}
+                                <div className="space-y-1 w-full">
+                                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{tier.name}</h3>
+                                    <div className="flex items-baseline gap-2 w-full">
+                                        <span className={`font-black text-slate-900 truncate ${tier.id === 'elite' ? 'text-[32px] tracking-tight' : 'text-4xl'}`}>
+                                            {tier.price}
+                                        </span>
+                                        {tier.priceSubtext && <span className="text-sm font-bold text-slate-400">{tier.priceSubtext}</span>}
+                                    </div>
+                                    <p className="text-xs text-slate-400 font-medium pt-1">{tier.description}</p>
+                                </div>
+
+                                {/* Features List */}
+                                <div className="w-full space-y-4 flex-grow pt-2">
+                                    {tier.features.map((feature, idx) => (
+                                        <div key={idx} className={`flex items-start gap-3 ${feature.enabled === false ? 'opacity-50 grayscale' : ''}`}>
+                                            <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${feature.enabled === false ? 'bg-slate-100' : 'bg-slate-50'
+                                                }`}>
+                                                {feature.enabled === false
+                                                    ? <X className="w-3 h-3 text-slate-400" />
+                                                    : <Check className="w-3 h-3 text-slate-900" />
+                                                }
+                                            </div>
+                                            <span className={`text-sm font-medium ${feature.bold ? 'text-slate-900 font-bold' : 'text-slate-600'}`}>
+                                                {feature.text}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Action Button */}
+                                <button
+                                    onClick={() => handleUpgrade(tier.id)}
+                                    disabled={tier.isFree || paymentLoading}
+                                    className={`w-full h-14 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 mt-auto ${tier.buttonStyle} ${(paymentLoading && tier.id === 'pro') ? 'opacity-60 cursor-wait' : ''}`}
+                                >
+                                    {tier.buttonText}
+                                </button>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Basic Footer match */}
+            <footer className="w-full relative z-10 border-t border-slate-100 bg-white py-12 px-6 mt-auto">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center shadow-md rotate-[-2deg]">
                             <Target className="w-4 h-4 text-white" />
                         </div>
-                        <span className="font-black text-lg text-slate-900 uppercase italic tracking-tight">Design Snapper.</span>
+                        <span className="font-black text-lg text-slate-900 uppercase italic">Design Snapper.</span>
                     </div>
-                    <div className="flex gap-6 text-xs font-bold uppercase tracking-widest text-slate-400">
-                        <button onClick={() => onNavigate('landing')} className="hover:text-slate-900 transition-colors">Home</button>
-                        <button onClick={() => onNavigate('upload')} className="hover:text-slate-900 transition-colors">Audit Tool</button>
+
+                    <div className="flex flex-wrap items-center justify-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <a href="#" className="hover:text-slate-900 transition-colors">Home</a>
+                        <a href="#" className="hover:text-slate-900 transition-colors">Audit Tool</a>
                         <a href="#" className="hover:text-slate-900 transition-colors">Privacy</a>
                         <a href="#" className="hover:text-slate-900 transition-colors">Terms</a>
                     </div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">© 2026 Design Snapper Inc.</p>
+
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        © 2026 Design Snapper Inc.
+                    </p>
                 </div>
             </footer>
         </div>
