@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { Check, Shield, Clock, Zap, ArrowLeft, Target, Rocket, Crown, Cross, X, Globe, ChevronDown } from 'lucide-react';
+import { Check, Shield, Clock, Zap, ArrowLeft, Target, Rocket, Crown, X, Globe, ChevronDown, Loader2, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useRazorpay } from '../hooks/useRazorpay';
+import { toast } from 'sonner';
 
 interface PricingPageProps {
     onNavigate: (screen: string, data?: any) => void;
+    session?: any;
 }
 
-type Region = 'India' | 'United States' | 'Europe' | 'Rest of World';
-const REGIONS: Region[] = ['India', 'United States', 'Europe', 'Rest of World'];
+type Region = 'India' | 'International';
+const REGIONS: Region[] = ['India', 'International'];
 
 interface TierFeature {
     text: string;
@@ -21,8 +22,8 @@ interface TierFeature {
 interface PricingTier {
     id: string;
     name: string;
-    price: number;
-    originalPrice: number;
+    price: string;           // formatted price string
+    priceSubtext: string;    // e.g. "one-time" or "/mo"
     description: string;
     features: TierFeature[];
     icon: React.ReactNode;
@@ -35,44 +36,32 @@ interface PricingTier {
     buttonStyle: string;
 }
 
-const PRICING: Record<'india' | 'international', { symbol: string; starter: number; pro: number; elite: number }> = {
-    india: { symbol: '₹', starter: 0, pro: 500, elite: 1500 },
-    international: { symbol: '$', starter: 0, pro: 9, elite: 29 },
-};
-
-export function PricingPage({ onNavigate }: PricingPageProps) {
+export function PricingPage({ onNavigate, session }: PricingPageProps) {
     const [region, setRegion] = useState<Region>('India');
-    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const { processPayment, loading: paymentLoading } = useRazorpay();
 
     const isIndia = region === 'India';
-    const pricing = isIndia ? PRICING.india : PRICING.international;
-    const { symbol } = pricing;
+    const symbol = isIndia ? '₹' : '$';
 
-    const getPrice = (price: number) => {
-        if (price === 0) return 0;
-        return billingCycle === 'yearly' ? Math.round(price * 0.8) : price;
-    };
-
-    // To unify the styling with the requested format, we define tiers here
     const tiers: PricingTier[] = [
         {
             id: 'starter',
             name: 'Starter',
-            price: getPrice(pricing.starter),
-            originalPrice: pricing.starter,
-            description: "Perfect for getting started",
+            price: 'Free',
+            priceSubtext: 'forever',
+            description: "Try Design Snapper risk-free",
             features: [
-                { text: '15 Credits / month', bold: true },
-                { text: 'Standard Analysis' },
+                { text: '3 Free Design Audits', bold: true },
+                { text: 'AI-Powered Analysis' },
+                { text: 'WCAG Contrast Checks' },
+                { text: 'Heuristic Evaluation' },
+                { text: 'Expert Persona Feedback', enabled: false },
                 { text: 'Unlimited Audits', enabled: false },
-                { text: 'Download Reports', enabled: false },
-                // Dummy spacing features to help align if needed, but flex-grow handles it.
             ],
             icon: <Zap className="w-6 h-6 text-slate-400" />,
             buttonText: 'Current Plan',
             isFree: true,
-            isPopular: false,
             bgIcon: 'bg-slate-100',
             borderColor: 'border-slate-100',
             buttonStyle: 'bg-slate-50 text-slate-400 cursor-default',
@@ -80,17 +69,17 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
         {
             id: 'pro',
             name: 'Pro',
-            price: getPrice(pricing.pro),
-            originalPrice: pricing.pro,
-            description: "Best for growing teams",
+            price: isIndia ? '₹500' : '$9',
+            priceSubtext: 'one-time',
+            description: "Unlock the full power of Snapper",
             features: [
-                { text: 'Unlimited Audits', bold: true },
+                { text: '30 Design Audit Credits', bold: true },
+                { text: `~${isIndia ? '₹16.67' : '$0.30'} per audit`, bold: true },
+                { text: 'All AI Models (incl. Claude Opus)' },
+                { text: 'Premium Expert Personas' },
+                { text: 'Full Audit History' },
                 { text: 'Priority Processing' },
-                { text: 'Premium Expert Personas', bold: true },
-                { text: 'Full History Access' },
-                { text: 'Advanced Heatmaps' },
             ],
-            // Use standard Tailwind colors for reliability
             icon: <Rocket className="w-6 h-6 text-blue-600" />,
             buttonText: 'Upgrade to Pro',
             isPopular: true,
@@ -101,8 +90,8 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
         {
             id: 'elite',
             name: 'Elite',
-            price: getPrice(pricing.elite),
-            originalPrice: pricing.elite,
+            price: isIndia ? '₹1,500' : '$29',
+            priceSubtext: '/mo',
             description: "Maximum power & support",
             features: [
                 { text: 'Unlimited Design Audits' },
@@ -111,21 +100,102 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                 { text: 'White-label Reports', exclusive: true, bold: true },
                 { text: '24/7 Priority Support' },
             ],
-            // Use inline style to force the color since Tailwind class was failing
             icon: <Crown className="w-6 h-6" style={{ color: '#f59e0b' }} />,
-            buttonText: 'Upgrade to Elite',
+            buttonText: 'Coming Soon',
             isBestValue: true,
-            bgIcon: '', // Handled via style inside map loop
+            bgIcon: '',
             borderColor: 'border-slate-100',
             buttonStyle: 'bg-slate-900 hover:bg-black text-white',
         }
     ];
 
-    // Selected logic for styling default
     const selectedTierId = 'pro';
 
+    const handleUpgrade = (tierId: string) => {
+        if (tierId === 'starter') return;
+        if (tierId === 'elite') {
+            toast.info('Elite plan is coming soon!');
+            return;
+        }
+
+        if (!session) {
+            toast.error('Please sign in to upgrade.', {
+                action: { label: 'Sign In', onClick: () => onNavigate('auth') },
+            });
+            return;
+        }
+
+        const amount = isIndia ? 500 : 9;
+        const currency = isIndia ? 'INR' : 'USD';
+
+        processPayment({
+            amount,
+            currency,
+            accessToken: session.access_token,
+            onSuccess: () => {
+                toast.success('🎉 Welcome to Pro! You now have 30 credits.');
+                onNavigate('upload');
+            },
+            onError: (error: any) => {
+                console.error('Payment failed:', error);
+            },
+        });
+    };
+
     return (
-        <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center pt-20 pb-32 px-6 overflow-x-hidden font-['Inter',_'Helvetica_Neue',_Helvetica,_Arial,_sans-serif]">
+        <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center pt-20 pb-32 px-6 overflow-x-hidden font-['Inter',_'Helvetica_Neue',_Helvetica,_Arial,_sans-serif] relative">
+
+            {/* ---- Razorpay Loading Overlay ---- */}
+            <AnimatePresence>
+                {paymentLoading && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                            className="bg-white rounded-3xl p-10 shadow-2xl flex flex-col items-center gap-5 max-w-sm mx-6"
+                        >
+                            {/* Animated shimmer ring */}
+                            <div className="relative w-20 h-20">
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                                    className="absolute inset-0 rounded-full border-[3px] border-transparent"
+                                    style={{ borderTopColor: '#2563eb', borderRightColor: '#2563eb' }}
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <CreditCard className="w-8 h-8 text-blue-600" />
+                                </div>
+                            </div>
+
+                            <div className="text-center">
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight">Processing Payment</h3>
+                                <p className="text-sm text-slate-500 mt-1.5 font-medium">
+                                    Razorpay secure checkout is loading…
+                                </p>
+                            </div>
+
+                            {/* Pulsing dots */}
+                            <div className="flex gap-1.5">
+                                {[0, 1, 2].map((i) => (
+                                    <motion.div
+                                        key={i}
+                                        animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }}
+                                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                                        className="w-2 h-2 rounded-full bg-blue-600"
+                                    />
+                                ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Back Button */}
             <div className="absolute top-8 left-8 z-50">
@@ -147,9 +217,8 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                     <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase italic">Pricing.</h1>
                 </div>
 
-                {/* Region & Toggle Controls */}
+                {/* Region Dropdown */}
                 <div className="flex flex-col items-center gap-6 mb-8">
-                    {/* Region Dropdown */}
                     <div className="relative z-50">
                         <button
                             onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -185,31 +254,14 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                             )}
                         </AnimatePresence>
                     </div>
-
-                    {/* Billing Toggle */}
-                    <div className="bg-slate-100 p-1 rounded-xl inline-flex items-center relative">
-                        <button
-                            onClick={() => setBillingCycle('monthly')}
-                            className={`relative z-10 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${billingCycle === 'monthly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            Monthly
-                        </button>
-                        <button
-                            onClick={() => setBillingCycle('yearly')}
-                            className={`relative z-10 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${billingCycle === 'yearly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            Yearly <span className="text-[9px] text-green-600 ml-1.5">-20%</span>
-                        </button>
-                    </div>
                 </div>
 
                 <p className="text-lg font-medium text-slate-500 max-w-2xl mx-auto">
-                    Choose the plan that fits your design workflow. Upgrade or cancel anytime.
+                    Simple, transparent pricing. Pay once — audit as much as you need.
                 </p>
             </div>
 
             {/* Pricing Cards Grid */}
-            {/* Ensure grid items stretch to match height */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl mb-12 items-stretch">
                 {tiers.map((tier) => (
                     <motion.div
@@ -228,14 +280,14 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                         )}
                         {tier.isBestValue && (
                             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-slate-900 shadow-lg whitespace-nowrap border border-slate-700">
-                                ELITE STATUS
+                                COMING SOON
                             </div>
                         )}
 
-                        {/* Card Content - h-full ensures wrapper fills height, flex ensures content distribution */}
+                        {/* Card Content */}
                         <div className={`p-8 h-full rounded-[40px] border-2 transition-all flex flex-col items-start gap-6 relative group ${selectedTierId === tier.id
-                                ? 'border-blue-600 bg-white shadow-xl z-10'
-                                : 'border-slate-100 bg-white hover:border-slate-200 shadow-sm z-0'
+                            ? 'border-blue-600 bg-white shadow-xl z-10'
+                            : 'border-slate-100 bg-white hover:border-slate-200 shadow-sm z-0'
                             }`}>
                             {/* Header */}
                             <div className="flex items-center justify-between w-full">
@@ -253,27 +305,16 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                             {/* Price & Name */}
                             <div className="space-y-1 w-full">
                                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{tier.name}</h3>
-                                <div className="flex items-baseline gap-1">
-                                    <AnimatePresence mode='wait'>
-                                        <motion.span
-                                            key={`${tier.price}-${billingCycle}`}
-                                            initial={{ opacity: 0, y: 5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="text-4xl font-black text-slate-900"
-                                        >
-                                            {symbol}{tier.price}
-                                        </motion.span>
-                                    </AnimatePresence>
-                                    {!tier.isFree && <span className="text-sm font-bold text-slate-400">/mo</span>}
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-black text-slate-900">
+                                        {tier.price}
+                                    </span>
+                                    <span className="text-sm font-bold text-slate-400">{tier.priceSubtext}</span>
                                 </div>
-                                {billingCycle === 'yearly' && !tier.isFree && (
-                                    <div className="text-xs text-slate-400 line-through decoration-slate-300">
-                                        {symbol}{tier.originalPrice}
-                                    </div>
-                                )}
+                                <p className="text-xs text-slate-400 font-medium pt-1">{tier.description}</p>
                             </div>
 
-                            {/* Features List - Flex Grow handles gap logic */}
+                            {/* Features List */}
                             <div className="w-full space-y-4 flex-grow pt-2">
                                 {tier.features.map((feature, idx) => (
                                     <div key={idx} className={`flex items-start gap-3 ${feature.enabled === false ? 'opacity-50 grayscale' : ''}`}>
@@ -291,9 +332,11 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                                 ))}
                             </div>
 
-                            {/* Action Button - mt-auto enforces bottom alignment if flex-grow fails */}
+                            {/* Action Button */}
                             <button
-                                className={`w-full h-14 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 mt-auto ${tier.buttonStyle}`}
+                                onClick={() => handleUpgrade(tier.id)}
+                                disabled={tier.isFree || paymentLoading || tier.id === 'elite'}
+                                className={`w-full h-14 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 mt-auto ${tier.buttonStyle} ${(paymentLoading && tier.id === 'pro') ? 'opacity-60 cursor-wait' : ''} ${tier.id === 'elite' ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {tier.buttonText}
                             </button>
@@ -302,12 +345,14 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                 ))}
             </div>
 
-            {/* Trust Badges Section */}
+            {/* Trust Badges */}
             <div className="w-full max-w-3xl flex flex-col items-center gap-12">
                 <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6 text-slate-400 font-bold">
                     <div className="flex items-center gap-3">
                         <Shield className="w-4 h-4" />
-                        <span className="text-[10px] uppercase tracking-widest whitespace-nowrap">Secure via Stripe</span>
+                        <span className="text-[10px] uppercase tracking-widest whitespace-nowrap">
+                            {isIndia ? 'Secure via Razorpay' : 'Secure Payments'}
+                        </span>
                     </div>
                     <div className="flex items-center gap-3">
                         <Clock className="w-4 h-4" />
@@ -315,24 +360,13 @@ export function PricingPage({ onNavigate }: PricingPageProps) {
                     </div>
                     <div className="flex items-center gap-3">
                         <Zap className="w-4 h-4" />
-                        <span className="text-[10px] uppercase tracking-widest whitespace-nowrap">Cancel Anytime</span>
+                        <span className="text-[10px] uppercase tracking-widest whitespace-nowrap">No Subscriptions</span>
                     </div>
                 </div>
 
                 <p className="text-center text-sm text-slate-400 max-w-xl font-medium leading-relaxed">
-                    Questions about our enterprise plan? <span className="text-blue-600 cursor-pointer hover:underline">Contact our sales team</span> for custom integrations and volume discounts.
+                    Pro credits never expire. Use them at your own pace — no monthly pressure.
                 </p>
-            </div>
-
-            {/* Brand Logos */}
-            <div className="mt-24 max-w-4xl w-full select-none pointer-events-none">
-                <div className="flex flex-wrap items-center justify-center gap-12 opacity-20 grayscale contrast-125">
-                    <div className="font-black text-xl tracking-tighter italic text-slate-900">STRIPE</div>
-                    <div className="font-black text-xl tracking-tighter italic text-slate-900">VERCEL</div>
-                    <div className="font-black text-xl tracking-tighter italic text-slate-900">LINEAR</div>
-                    <div className="font-black text-xl tracking-tighter italic text-slate-900">FIGMA</div>
-                    <div className="font-black text-xl tracking-tighter italic text-slate-900">RAYCAST</div>
-                </div>
             </div>
         </div>
     );

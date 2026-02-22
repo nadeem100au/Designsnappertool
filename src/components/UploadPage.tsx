@@ -29,6 +29,8 @@ import { analyzeScreenshotWithAI } from '../utils/aiAnalysis';
 import { HistorySidebar } from './HistorySidebar';
 import { saveAudit } from '../utils/supabase/database';
 import { uploadAuditImage } from '../utils/supabase/storage';
+import { CreditIndicator } from './CreditIndicator';
+import { useCredits } from '../hooks/useCredits';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { toast } from 'sonner';
@@ -48,8 +50,9 @@ const PERSONA_IMAGES = {
 interface UploadPageProps {
   onNavigate: (screen: string, data?: any) => void;
   data?: any;
-  session?: any; // strict typing would be Session | null but let's use any for now or import Session
+  session?: any;
   onSignOut?: () => void;
+  credits?: ReturnType<typeof useCredits>; // passed from App.tsx so it persists across navigation
 }
 
 const ItemType = {
@@ -154,7 +157,7 @@ const CRITERIA_FRAMEWORK = {
 
 import { UserProfileMenu } from './UserProfileMenu';
 
-export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageProps) {
+export function UploadPage({ onNavigate, data, session, onSignOut, credits: creditsProp }: UploadPageProps) {
   const [currentStep, setCurrentStep] = useState<'upload' | 'criteria'>('upload');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -168,6 +171,10 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
   const [analysisMode, setAnalysisMode] = useState<'technical-only' | 'with-influencer'>(data?.mode || 'technical-only');
   const [selectedPersona, setSelectedPersona] = useState<string>(data?.selectedPersona || 'chris-do');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // Use credits from App.tsx if provided (persists across navigation); fall back to local hook
+  const localCredits = useCredits(creditsProp ? null : session);
+  const credits = creditsProp ?? localCredits;
 
   const [selectedCriteria, setSelectedCriteria] = useState<{
     visual: string[];
@@ -443,6 +450,22 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
   const startAnalysis = async () => {
     if (uploadedImages.length === 0) return;
 
+    // Credit gating: check before starting
+    if (session && !credits.loading) {
+      if (credits.plan === 'starter' && credits.auditsUsed >= credits.maxFreeAudits) {
+        toast.error('You\'ve used all 3 free audits. Upgrade to Pro for more!', {
+          action: { label: 'Upgrade', onClick: () => onNavigate('pricing') },
+        });
+        return;
+      }
+      if (credits.plan === 'pro' && credits.creditsRemaining <= 0) {
+        toast.error('Your credits are exhausted. Please top up to continue.', {
+          action: { label: 'Top Up', onClick: () => onNavigate('pricing') },
+        });
+        return;
+      }
+    }
+
     setIsAnalyzing(true);
     setProgress(0);
     setError(null);
@@ -468,12 +491,26 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
         {
           mode: analysisMode,
           influencerPersona: analysisMode === 'with-influencer' ? selectedPersona : undefined,
-          testCriteria: selectedCriteria
+          testCriteria: selectedCriteria,
+          accessToken: session?.access_token,
         }
       );
 
       clearInterval(progressInterval);
       setProgress(100);
+
+      // Refresh credit balance after successful audit — await so toast gets accurate data
+      await credits.refetch();
+
+      // Show audit complete toast — use the freshly refreshed auditsUsed
+      if (credits.plan === 'starter') {
+        const remaining = credits.maxFreeAudits - credits.auditsUsed;
+        toast.success(`Audit complete! ${remaining > 0 ? `${remaining} free audit${remaining !== 1 ? 's' : ''} remaining.` : 'This was your last free audit. Upgrade to Pro for more!'}`);
+      } else if (result.usage?.creditsDeducted) {
+        toast.success(`Audit complete! ${result.usage.creditsDeducted.toFixed(2)} credits used.`);
+      } else {
+        toast.success('Audit complete!');
+      }
 
       const analysisData = {
         screenshot: stitchedImage,
@@ -515,6 +552,21 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
       clearInterval(progressInterval);
       setProgress(0);
       setIsAnalyzing(false);
+
+      // Handle credit-specific errors
+      if (error.code === 'upgrade_required') {
+        toast.error('You\'ve used all 3 free audits. Upgrade to Pro for more!', {
+          action: { label: 'Upgrade', onClick: () => onNavigate('pricing') },
+        });
+        return;
+      }
+      if (error.code === 'credits_exhausted') {
+        toast.error('Your credits are exhausted. Please top up to continue.', {
+          action: { label: 'Top Up', onClick: () => onNavigate('pricing') },
+        });
+        return;
+      }
+
       setError(error.message || 'The analysis failed. Please check your API key and try again.');
     }
   };
@@ -557,6 +609,17 @@ export function UploadPage({ onNavigate, data, session, onSignOut }: UploadPageP
                   <History className="w-4 h-4" />
                   History
                 </Button>
+              )}
+              {session && (
+                <CreditIndicator
+                  plan={credits.plan}
+                  creditsRemaining={credits.creditsRemaining}
+                  totalCredits={credits.totalCredits}
+                  auditsUsed={credits.auditsUsed}
+                  maxFreeAudits={credits.maxFreeAudits}
+                  loading={credits.loading}
+                  onUpgrade={() => onNavigate('pricing')}
+                />
               )}
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-8 h-8 bg-slate-900 rounded-[10px] flex items-center justify-center shadow-lg">

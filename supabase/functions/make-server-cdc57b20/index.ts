@@ -5,6 +5,7 @@ import { jsonrepair } from "npm:jsonrepair";
 import * as kv from "./kv_utils.ts";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
+import { createClient } from "npm:@supabase/supabase-js";
 
 const app = new Hono();
 
@@ -111,7 +112,234 @@ function safeParseAIResponse(text: string) {
   }
 }
 
+// ============================================
+// Credit System Helpers
+// ============================================
+
+const CREDIT_VALUE_INR = 16.67; // ₹500 / 30 credits
+const FIXED_OVERHEAD_INR = 5;   // ₹5 fixed cost per audit
+const USD_TO_INR = 87;          // Conversion rate
+const STARTER_FREE_AUDITS = 3;
+const PRO_TOTAL_CREDITS = 30;
+
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-opus-4-5-20251101": { input: 15.00, output: 75.00 },
+  "claude-3-5-sonnet-20241022": { input: 3.00, output: 15.00 },
+  "claude-3-haiku-20240307": { input: 0.25, output: 1.25 },
+};
+
+function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = MODEL_PRICING[model] ?? { input: 15.00, output: 75.00 };
+  const cost = (inputTokens / 1_000_000) * pricing.input
+    + (outputTokens / 1_000_000) * pricing.output;
+  return Math.round(cost * 1_000_000) / 1_000_000;
+}
+
+function calculateCreditsToDeduct(costUSD: number): number {
+  const totalCostINR = FIXED_OVERHEAD_INR + (costUSD * USD_TO_INR);
+  const credits = totalCostINR / CREDIT_VALUE_INR;
+  return Math.round(credits * 1000) / 1000; // 3 decimal places
+}
+
+const dbClient = () => createClient(
+  Deno.env.get("SUPABASE_URL") || "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+);
+
+// Extract user ID from Authorization header (JWT)
+async function getUserIdFromAuth(authHeader: string | undefined): Promise<string | null> {
+  if (!authHeader) return null;
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    // Use service role key to validate the user's JWT
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") || "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+    );
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      console.error('Auth error:', error?.message);
+      return null;
+    }
+    return user.id;
+  } catch (e) {
+    console.error('getUserIdFromAuth error:', e);
+    return null;
+  }
+}
+
+// Returns both id and email — used for audit calls where we store email in user_credits
+async function getUserFromAuth(authHeader: string | undefined): Promise<{ id: string; email: string } | null> {
+  if (!authHeader) return null;
+  try {
+    const token = authHeader.replace('Bearer ', '');
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") || "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+    );
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      console.error('Auth error:', error?.message);
+      return null;
+    }
+    console.log(`Authenticated user: ${user.email} (${user.id})`);
+    return { id: user.id, email: user.email || '' };
+  } catch (e) {
+    console.error('getUserFromAuth error:', e);
+    return null;
+  }
+}
+
+// ---- Ensure profiles row exists for user ----
+async function ensureProfile(userId: string, email: string) {
+  const supabase = dbClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!data) {
+    await supabase.from('profiles').insert({ user_id: userId, email });
+    console.log(`Created profile for ${email}`);
+  }
+}
+
+// ---- Get or auto-create user_plan (starter by default) ----
+async function getUserPlan(userId: string, userEmail?: string) {
+  const supabase = dbClient();
+  const { data, error } = await supabase
+    .from('user_plan')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching user_plan:', error.message);
+    return null;
+  }
+
+  // Auto-create starter row on first audit
+  if (!data) {
+    const { data: inserted, error: insertError } = await supabase
+      .from('user_plan')
+      .insert({ user_id: userId, plan: 'starter', status: 'active', audits_used: 0, credits_remaining: 0, total_credits: 0, money_remaining: 0 })
+      .select()
+      .single();
+    if (insertError) {
+      console.error('Error creating user_plan:', insertError.message);
+      return null;
+    }
+    console.log(`Created starter plan for: ${userEmail || userId}`);
+    return inserted;
+  }
+
+  return data;
+}
+
+// ---- Log an audit event to audit_log ----
+async function logAudit(userId: string, planAtTime: string, action: 'success' | 'blocked' | 'failed', opts?: {
+  blockReason?: string;
+  aiCostUsd?: number;
+  creditsUsed?: number;
+  moneyDeducted?: number;
+  modelUsed?: string;
+}) {
+  const supabase = dbClient();
+  await supabase.from('audit_log').insert({
+    user_id: userId,
+    plan_at_time: planAtTime,
+    action,
+    block_reason: opts?.blockReason ?? null,
+    ai_cost_usd: opts?.aiCostUsd ?? null,
+    credits_used: opts?.creditsUsed ?? null,
+    money_deducted: opts?.moneyDeducted ?? null,
+    model_used: opts?.modelUsed ?? null,
+  });
+}
+
+// ---- Deduct usage from user_plan after a successful audit ----
+async function recordAuditUsage(userId: string, plan: string, creditsToDeduct: number, costUSD: number, model: string) {
+  const supabase = dbClient();
+  const { data: current } = await supabase
+    .from('user_plan')
+    .select('credits_remaining, money_remaining, audits_used')
+    .eq('user_id', userId)
+    .single();
+
+  if (!current) return null;
+
+  const inrCost = FIXED_OVERHEAD_INR + costUSD * USD_TO_INR;
+
+  if (plan === 'starter') {
+    // Starter: only increment audits_used
+    const newAudits = current.audits_used + 1;
+    const newStatus = newAudits >= STARTER_FREE_AUDITS ? 'exhausted' : 'active';
+    await supabase.from('user_plan').update({
+      audits_used: newAudits,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', userId);
+    await logAudit(userId, 'starter', 'success', { modelUsed: model });
+    return null;
+  }
+
+  // Pro: deduct credits + money
+  const newCredits = Math.max(0, Number(current.credits_remaining) - creditsToDeduct);
+  const newMoney = Math.max(0, Number(current.money_remaining) - inrCost);
+  const newStatus = newCredits <= 0 ? 'exhausted' : 'active';
+
+  await supabase.from('user_plan').update({
+    credits_remaining: newCredits,
+    money_remaining: newMoney,
+    audits_used: current.audits_used + 1,
+    status: newStatus,
+    updated_at: new Date().toISOString(),
+  }).eq('user_id', userId);
+
+  await logAudit(userId, 'pro', 'success', {
+    aiCostUsd: costUSD,
+    creditsUsed: creditsToDeduct,
+    moneyDeducted: inrCost,
+    modelUsed: model,
+  });
+
+  return newCredits;
+}
+
+// ============================================
+// Routes
+// ============================================
+
 app.get("/make-server-cdc57b20/health", (c) => c.json({ status: "ok" }));
+
+// GET /credits — returns user's current plan state
+app.get("/make-server-cdc57b20/credits", async (c) => {
+  try {
+    // Accept token from query param (passed by frontend to avoid overriding anon key in headers)
+    const tokenParam = c.req.query('token');
+    const authHeader = c.req.header('Authorization');
+    const token = tokenParam || (authHeader ? authHeader.replace('Bearer ', '') : null);
+    if (!token) return c.json({ error: 'Not authenticated' }, 401);
+
+    const userId = await getUserIdFromAuth(`Bearer ${token}`);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+
+    const plan = await getUserPlan(userId);
+    if (!plan) return c.json({ error: 'Failed to load plan' }, 500);
+
+    return c.json({
+      plan: plan.plan,
+      status: plan.status,
+      creditsRemaining: Number(plan.credits_remaining),
+      totalCredits: Number(plan.total_credits),
+      auditsUsed: Number(plan.audits_used),
+      maxFreeAudits: STARTER_FREE_AUDITS,
+    });
+  } catch (error) {
+    console.error('Credits endpoint error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
 
 app.post("/make-server-cdc57b20/share", async (c) => {
   try {
@@ -138,16 +366,39 @@ app.get("/make-server-cdc57b20/share/:id", async (c) => {
 
 app.post("/make-server-cdc57b20/analyze", async (c) => {
   try {
-    const { image, context, mode, influencerPersona, testCriteria } = await c.req.json();
+    const { image, context, mode, influencerPersona, testCriteria, accessToken } = await c.req.json();
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
 
     if (!anthropicKey) {
-      console.error("Missing ANTHROPIC_API_KEY environment variable");
-      return c.json({ error: "Server configuration error: Anthropic API key is missing. Please add it to the Supabase secrets." }, 500);
+      return c.json({ error: "Server configuration error: Anthropic API key is missing." }, 500);
     }
 
     if (!image) {
       return c.json({ error: "No image provided" }, 400);
+    }
+
+    // ---- Identify user from accessToken in request body ----
+    const userAuth = accessToken ? await getUserFromAuth(`Bearer ${accessToken}`) : null;
+    const userId = userAuth?.id || null;
+    let userPlan: any = null;
+
+    if (userId && userAuth) {
+      // Ensure profile exists
+      await ensureProfile(userId, userAuth.email);
+      userPlan = await getUserPlan(userId, userAuth.email);
+
+      if (userPlan) {
+        // ---- Gate: Starter limit ----
+        if (userPlan.plan === 'starter' && userPlan.audits_used >= STARTER_FREE_AUDITS) {
+          await logAudit(userId, 'starter', 'blocked', { blockReason: 'limit_reached' });
+          return c.json({ error: "upgrade_required", message: "You've used all 3 free audits. Upgrade to Pro for more!" }, 403);
+        }
+        // ---- Gate: Pro exhausted ----
+        if (userPlan.plan === 'pro' && Number(userPlan.credits_remaining) <= 0) {
+          await logAudit(userId, 'pro', 'blocked', { blockReason: 'credits_exhausted' });
+          return c.json({ error: "credits_exhausted", message: "Your Pro credits are exhausted." }, 403);
+        }
+      }
     }
 
     const base64Data = image.split(',')[1] || image;
@@ -292,8 +543,25 @@ Return the audit in the specified JSON format.` }
               const data = await response.json();
               const parsed = safeParseAIResponse(data.content[0].text);
               if (parsed && (parsed.annotations?.length > 0 || parsed.influencerReview)) {
-                console.log(`Successfully used model: ${model}`);
-                return c.json({ ...parsed, mode: 'ai', modelUsed: model });
+                // ---- Calculate cost and deduct credits ----
+                const usage = data.usage ?? {};
+                const inputTokens: number = usage.input_tokens ?? 0;
+                const outputTokens: number = usage.output_tokens ?? 0;
+                const costUSD = calculateCost(model, inputTokens, outputTokens);
+                const creditsToDeduct = calculateCreditsToDeduct(costUSD);
+
+                let creditsRemaining: number | null = null;
+                if (userId && userPlan) {
+                  creditsRemaining = await recordAuditUsage(userId, userPlan.plan, creditsToDeduct, costUSD, model);
+                }
+
+                console.log(`Model: ${model} | in=${inputTokens} out=${outputTokens} | $${costUSD} | credits=${creditsToDeduct}`);
+                return c.json({
+                  ...parsed,
+                  mode: 'ai',
+                  modelUsed: model,
+                  usage: { inputTokens, outputTokens, costUSD, creditsDeducted: creditsToDeduct, creditsRemaining }
+                });
               }
             } else {
               const errorBody = await response.text();

@@ -10,12 +10,12 @@ import { SEO } from './components/SEO';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { Loader2 } from 'lucide-react';
 import { Toaster } from 'sonner';
-
 import { AuthPage } from './components/AuthPage';
 import { CompleteProfilePage } from './components/CompleteProfilePage';
 import { PricingPage } from './components/PricingPage';
 import { supabase } from './utils/supabase/client';
 import { Session } from '@supabase/supabase-js';
+import { useCredits } from './hooks/useCredits';
 
 type Screen = 'landing' | 'upload' | 'dashboard' | 'report' | 'influencer-library' | 'chat' | 'auth' | 'complete-profile' | 'pricing';
 
@@ -26,6 +26,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const analysisDataRef = useRef<any>(null);
+
+  // Lifted here so credits persist across page navigation
+  const credits = useCredits(session);
 
   // Keep ref in sync with state so popstate handler always has current data
   useEffect(() => {
@@ -265,7 +268,7 @@ export default function App() {
       case 'landing':
         return <LandingPage onNavigate={navigateToScreen} session={session} onSignOut={handleSignOut} />;
       case 'upload':
-        return <UploadPage onNavigate={navigateToScreen} data={analysisData} session={session} onSignOut={handleSignOut} />;
+        return <UploadPage onNavigate={navigateToScreen} data={analysisData} session={session} onSignOut={handleSignOut} credits={credits} />;
 
       case 'dashboard':
         return analysisData ? <AnnotationDashboard onNavigate={navigateToScreen} data={analysisData} session={session} onSignOut={handleSignOut} /> : <LandingPage onNavigate={navigateToScreen} />;
@@ -281,7 +284,7 @@ export default function App() {
       case 'complete-profile':
         return <CompleteProfilePage onNavigate={navigateToScreen} />;
       case 'pricing':
-        return <PricingPage onNavigate={navigateToScreen} />;
+        return <PricingPage onNavigate={navigateToScreen} session={session} />;
       default:
         return <LandingPage onNavigate={navigateToScreen} />;
     }

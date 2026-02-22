@@ -24,3 +24,5 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+verify_anthropic.py

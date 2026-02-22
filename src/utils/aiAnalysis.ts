@@ -19,11 +19,20 @@ export interface InfluencerReview {
   actionableTips: string[];
 }
 
+export interface AuditUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costUSD: number;
+  creditsDeducted: number;
+  creditsRemaining: number | null;
+}
+
 interface AnalysisResult {
   annotations: AnalysisAnnotation[];
   designType: string;
   mode?: string;
   influencerReview?: InfluencerReview;
+  usage?: AuditUsage;
 }
 
 export async function analyzeScreenshotWithAI(
@@ -37,23 +46,27 @@ export async function analyzeScreenshotWithAI(
       business: string[];
       heuristic: string[];
     };
+    accessToken?: string;
   }
 ): Promise<AnalysisResult> {
   console.log('Starting AI analysis...');
-  
+
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${publicAnonKey}`,
+    };
+
     const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-cdc57b20/analyze`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`
-      },
-      body: JSON.stringify({ 
-        image: imageDataUrl, 
+      headers,
+      body: JSON.stringify({
+        image: imageDataUrl,
         context,
         mode: options?.mode,
         influencerPersona: options?.influencerPersona,
-        testCriteria: options?.testCriteria
+        testCriteria: options?.testCriteria,
+        accessToken: options?.accessToken,
       })
     });
 
@@ -61,19 +74,23 @@ export async function analyzeScreenshotWithAI(
 
     if (!response.ok || result.error) {
       console.error('Server error response:', result.error || 'Unknown error');
-      throw new Error(result.error || `Server returned ${response.status}`);
+      // Throw with specific error codes so UploadPage can handle upgrade/exhaustion
+      const err = new Error(result.message || result.error || `Server returned ${response.status}`);
+      (err as any).code = result.error; // e.g. 'upgrade_required' or 'credits_exhausted'
+      throw err;
     }
-    
+
     return {
       annotations: result.annotations || [],
       designType: result.designType || 'UX',
       mode: result.mode,
-      influencerReview: result.influencerReview
+      influencerReview: result.influencerReview,
+      usage: result.usage,
     };
 
   } catch (error: any) {
     console.error('AI Analysis request failed:', error);
-    // No mock fallback as per user request to ensure 100% AI generated results.
     throw error;
   }
 }
+
