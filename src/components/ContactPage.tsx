@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Target, ArrowRight, ArrowLeft, Mail, ChevronDown, Check, X, Shield, Clock, Zap, Rocket, Crown, Globe } from 'lucide-react';
+import { Target, ArrowRight, Mail, ChevronDown, Check, X, Clock, Zap, Rocket, Crown, Globe, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Session } from '@supabase/supabase-js';
 import { UserProfileMenu } from './UserProfileMenu';
 import { Button } from './ui/button';
 import { useRazorpay } from '../hooks/useRazorpay';
 import { toast } from 'sonner';
+import { supabase } from '../utils/supabase/client';
 
 interface ContactPageProps {
     onNavigate: (screen: 'landing' | 'upload' | 'dashboard' | 'report' | 'auth' | 'pricing' | 'contact', data?: any) => void;
@@ -15,6 +16,45 @@ interface ContactPageProps {
 
 type Region = 'India' | 'International';
 const REGIONS: Region[] = ['India', 'International'];
+
+const COUNTRY_CODES = [
+    { code: '+91', flag: '🇮🇳', name: 'India' },
+    { code: '+1', flag: '🇺🇸', name: 'United States' },
+    { code: '+44', flag: '🇬🇧', name: 'United Kingdom' },
+    { code: '+61', flag: '🇦🇺', name: 'Australia' },
+    { code: '+49', flag: '🇩🇪', name: 'Germany' },
+    { code: '+33', flag: '🇫🇷', name: 'France' },
+    { code: '+81', flag: '🇯🇵', name: 'Japan' },
+    { code: '+86', flag: '🇨🇳', name: 'China' },
+    { code: '+82', flag: '🇰🇷', name: 'South Korea' },
+    { code: '+65', flag: '🇸🇬', name: 'Singapore' },
+    { code: '+971', flag: '🇦🇪', name: 'UAE' },
+    { code: '+966', flag: '🇸🇦', name: 'Saudi Arabia' },
+    { code: '+55', flag: '🇧🇷', name: 'Brazil' },
+    { code: '+52', flag: '🇲🇽', name: 'Mexico' },
+    { code: '+234', flag: '🇳🇬', name: 'Nigeria' },
+    { code: '+27', flag: '🇿🇦', name: 'South Africa' },
+    { code: '+7', flag: '🇷🇺', name: 'Russia' },
+    { code: '+39', flag: '🇮🇹', name: 'Italy' },
+    { code: '+34', flag: '🇪🇸', name: 'Spain' },
+    { code: '+31', flag: '🇳🇱', name: 'Netherlands' },
+    { code: '+46', flag: '🇸🇪', name: 'Sweden' },
+    { code: '+41', flag: '🇨🇭', name: 'Switzerland' },
+    { code: '+48', flag: '🇵🇱', name: 'Poland' },
+    { code: '+63', flag: '🇵🇭', name: 'Philippines' },
+    { code: '+60', flag: '🇲🇾', name: 'Malaysia' },
+    { code: '+62', flag: '🇮🇩', name: 'Indonesia' },
+    { code: '+66', flag: '🇹🇭', name: 'Thailand' },
+    { code: '+84', flag: '🇻🇳', name: 'Vietnam' },
+    { code: '+92', flag: '🇵🇰', name: 'Pakistan' },
+    { code: '+880', flag: '🇧🇩', name: 'Bangladesh' },
+    { code: '+94', flag: '🇱🇰', name: 'Sri Lanka' },
+    { code: '+977', flag: '🇳🇵', name: 'Nepal' },
+    { code: '+254', flag: '🇰🇪', name: 'Kenya' },
+    { code: '+20', flag: '🇪🇬', name: 'Egypt' },
+    { code: '+90', flag: '🇹🇷', name: 'Turkey' },
+    { code: '+972', flag: '🇮🇱', name: 'Israel' },
+];
 
 interface TierFeature {
     text: string;
@@ -52,7 +92,8 @@ export function ContactPage({ onNavigate, session, onSignOut }: ContactPageProps
         fullName: '',
         email: '',
         phone: '',
-        message: ''
+        message: '',
+        countryCode: '+91'
     });
 
     const tiers: PricingTier[] = [
@@ -154,14 +195,58 @@ export function ContactPage({ onNavigate, session, onSignOut }: ContactPageProps
         });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.fullName || !formData.email || !formData.message) {
             toast.error('Please fill in all required fields.');
             return;
         }
-        toast.success('Message sent successfully! We will get back to you soon.');
-        setFormData({ fullName: '', email: '', phone: '', message: '' });
+
+        setSubmitting(true);
+        try {
+            // Save to Supabase contact_submissions table
+            const { error } = await supabase
+                .from('contact_submissions')
+                .insert({
+                    full_name: formData.fullName,
+                    email: formData.email,
+                    phone: formData.phone ? `${formData.countryCode} ${formData.phone}` : null,
+                    message: formData.message,
+                });
+
+            if (error) {
+                console.error('Supabase insert error:', error);
+                toast.error('Failed to send message. Please try again.');
+                return;
+            }
+
+            // Email notification is best-effort
+            try {
+                await fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/make-server-cdc57b20/contact-notify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+                    body: JSON.stringify({
+                        name: formData.fullName,
+                        email: formData.email,
+                        phone: formData.phone,
+                        message: formData.message,
+                    }),
+                });
+            } catch {
+                // Email notification is best-effort; the data is already saved in Supabase
+                console.warn('Email notification failed, but submission was saved.');
+            }
+
+            toast.success('Message sent successfully! We will get back to you soon.');
+            setFormData({ fullName: '', email: '', phone: '', message: '', countryCode: '+91' });
+        } catch (err) {
+            console.error('Submit error:', err);
+            toast.error('Something went wrong. Please try again.');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -225,112 +310,124 @@ export function ContactPage({ onNavigate, session, onSignOut }: ContactPageProps
                 </p>
             </div>
 
-            {/* Contact Grid layout */}
-            <div className="max-w-6xl mx-auto px-6 pb-32 grid grid-cols-1 lg:grid-cols-2 gap-12 w-full">
-                {/* Left Col: Form */}
-                <div className="bg-white rounded-[32px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] border border-slate-100 p-8 md:p-12 h-fit">
-                    <h2 className="text-2xl font-black text-slate-900 mb-8">Send Us a Message</h2>
+            {/* Contact Content — two-column layout inside one wrapper */}
+            <div style={{ maxWidth: '900px' }} className="mx-auto px-6 pb-32 w-full">
+                <div className="bg-white rounded-[32px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden" style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr' }}>
 
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Full Name <span className="text-primary">*</span></label>
-                            <div className="relative flex items-center">
-                                <span className="absolute left-4 text-slate-400">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4出0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                                </span>
-                                <input
-                                    type="text"
-                                    placeholder="Aarav Mehta"
-                                    value={formData.fullName}
-                                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                                    className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-12 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                    {/* Left Col: Form */}
+                    <div className="p-8 md:p-12">
+                        <h2 className="text-2xl font-black text-slate-900 mb-10">Send Us a Message</h2>
+
+                        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-900">Full Name <span className="text-primary">*</span></label>
+                                <div className="relative flex items-center">
+                                    <span className="absolute left-4 text-slate-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        placeholder="Aarav Mehta"
+                                        value={formData.fullName}
+                                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                                        className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-11 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-900">Email Address <span className="text-primary">*</span></label>
+                                <div className="relative flex items-center">
+                                    <span className="absolute left-4 text-slate-400">
+                                        <Mail className="w-4 h-4" />
+                                    </span>
+                                    <input
+                                        type="email"
+                                        placeholder="aarav@company.com"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-11 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-900">Phone Number</label>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <select
+                                            value={formData.countryCode || '+91'}
+                                            onChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
+                                            className="h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                                            style={{ minWidth: '120px', WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none', backgroundImage: 'none', paddingLeft: '14px', paddingRight: '36px' }}
+                                        >
+                                            {COUNTRY_CODES.map((c) => (
+                                                <option key={c.code} value={c.code}>{c.flag}  {c.code}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    </div>
+                                    <input
+                                        type="tel"
+                                        placeholder="98765 43210"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                        className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-4 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-900">Message <span className="text-primary">*</span></label>
+                                <textarea
+                                    placeholder="Tell us about your project, team size, or what you'd like to achieve with Design Snapper..."
+                                    value={formData.message}
+                                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                                    className="w-full h-28 bg-[#FAFAFA] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 resize-none"
                                     required
                                 />
                             </div>
-                        </div>
 
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Email Address <span className="text-primary">*</span></label>
-                            <div className="relative flex items-center">
-                                <span className="absolute left-4 text-slate-400">
-                                    <Mail className="w-4 h-4" />
-                                </span>
-                                <input
-                                    type="email"
-                                    placeholder="aarav@company.com"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-12 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
-                                    required
-                                />
-                            </div>
-                        </div>
+                            <Button type="submit" disabled={submitting} className="w-full h-14 bg-slate-900 text-white rounded-[14px] font-black text-xs tracking-widest uppercase mt-2 shadow-xl shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-wait">
+                                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</> : <>Send Message <ArrowRight className="w-4 h-4 ml-2" /></>}
+                            </Button>
+                            <p className="text-[10px] text-center text-slate-400 font-medium mt-2">
+                                We never share your data. Average reply time: <strong className="text-slate-600 font-bold">under 2 hours.</strong>
+                            </p>
+                        </form>
+                    </div>
 
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Phone Number</label>
-                            <div className="relative flex items-center">
-                                <span className="absolute left-4 text-slate-400">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                </span>
-                                <input
-                                    type="tel"
-                                    placeholder="+91 98765 43210"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    className="w-full h-12 bg-[#FAFAFA] border border-slate-200 rounded-xl pl-12 pr-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Message <span className="text-primary">*</span></label>
-                            <textarea
-                                placeholder="Tell us about your project, team size, or what you'd like to achieve with Design Snapper..."
-                                value={formData.message}
-                                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                                className="w-full h-32 bg-[#FAFAFA] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 resize-none"
-                                required
-                            />
-                        </div>
-
-                        <Button type="submit" className="w-full h-14 bg-slate-900 text-white rounded-[14px] font-black text-xs tracking-widest uppercase mt-4 shadow-xl shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all">
-                            Send Message <ArrowRight className="w-4 h-4 ml-2" />
-                        </Button>
-                        <p className="text-[10px] text-center text-slate-400 font-medium">
-                            We never share your data. Average reply time: <strong className="text-slate-600 font-bold">under 2 hours.</strong>
-                        </p>
-                    </form>
-                </div>
-
-                {/* Right Col: Cards */}
-                <div className="flex flex-col gap-6 lg:pt-8 w-full max-w-md mx-auto lg:mx-0">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col gap-1 items-start">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                    {/* Right Col: Cards */}
+                    <div className="flex flex-col gap-6 p-8 md:p-10 justify-start">
+                        {/* Email card */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-center gap-4">
+                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center flex-shrink-0">
                                 <Mail className="w-5 h-5" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-primary">Email</span>
                                 <a href="mailto:designsnapper100@gmail.com" className="text-sm font-black text-slate-900 hover:text-primary transition-colors">designsnapper100@gmail.com</a>
                                 <span className="text-[10px] font-medium text-slate-400 mt-0.5">Replies within 2 business hours</span>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden shadow-2xl">
-                        {/* Decoration */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2" />
-                        <div className="relative z-10 flex flex-col items-start gap-4">
-                            <div className="px-3 py-1 bg-white/10 text-primary border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest backdrop-blur-sm">
-                                Free First Audit
+                        {/* Try before you buy card */}
+                        <div className="bg-slate-900 rounded-2xl p-8 relative overflow-hidden shadow-2xl flex-1">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2" />
+                            <div className="relative z-10 flex flex-col items-start gap-4">
+                                <div className="px-3 py-1 bg-white/10 text-green-400 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest backdrop-blur-sm">
+                                    ✓ Free First Audit
+                                </div>
+                                <h3 className="text-2xl font-black text-white">Try before you buy</h3>
+                                <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                                    Upload any design and get a full 18-principle AI audit — completely free, no credit card required.
+                                </p>
+                                <Button onClick={() => onNavigate('upload')} className="bg-white text-slate-900 hover:bg-slate-100 hover:scale-105 active:scale-95 transition-all w-full h-12 px-6 rounded-xl font-black text-xs uppercase tracking-widest mt-2">
+                                    Start Free Audit <ArrowRight className="w-4 h-4 ml-2" />
+                                </Button>
                             </div>
-                            <h3 className="text-2xl font-black text-white">Try before you buy</h3>
-                            <p className="text-sm text-slate-400 font-medium leading-relaxed mb-4">
-                                Upload any design and get a full 18-principle AI audit — completely free, no credit card required.
-                            </p>
-                            <Button onClick={() => onNavigate('upload')} className="bg-primary text-white hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all w-full md:w-auto h-12 px-6 rounded-xl font-black text-xs uppercase tracking-widest">
-                                Start Free Audit <ArrowRight className="w-4 h-4 ml-2" />
-                            </Button>
                         </div>
                     </div>
                 </div>
@@ -497,6 +594,6 @@ export function ContactPage({ onNavigate, session, onSignOut }: ContactPageProps
                     </p>
                 </div>
             </footer>
-        </div>
+        </div >
     );
 }

@@ -105,3 +105,25 @@ ALTER TABLE public.credit_usage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own credit usage"
 ON public.credit_usage FOR SELECT
 USING (auth.uid() = user_id);
+
+-- ============================================
+-- Contact Form Submissions
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.contact_submissions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.contact_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone (even unauthenticated) to insert a contact submission
+CREATE POLICY "Anyone can submit contact form"
+ON public.contact_submissions FOR INSERT
+WITH CHECK (true);
+
+-- Only service role / admin can read submissions (no public SELECT)

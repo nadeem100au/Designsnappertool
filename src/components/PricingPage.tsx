@@ -198,7 +198,7 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
             </AnimatePresence>
 
             {/* Back Button */}
-            <div className="absolute top-8 left-8 z-50">
+            <div className="w-full max-w-6xl z-50 mb-4">
                 <button
                     onClick={() => onNavigate('landing')}
                     className="flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-colors font-black uppercase text-[10px] tracking-widest cursor-pointer"
@@ -273,14 +273,18 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
                         transition={{ delay: 0.1 }}
                     >
                         {/* Badges */}
-                        {tier.isPopular && (
-                            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-blue-600 shadow-lg whitespace-nowrap">
-                                MOST POPULAR
-                            </div>
-                        )}
-                        {tier.isBestValue && (
-                            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-slate-900 shadow-lg whitespace-nowrap border border-slate-700">
-                                CUSTOM
+                        {(tier.isPopular || tier.isBestValue) && (
+                            <div className="flex justify-center w-full" style={{ marginBottom: '-14px', position: 'relative', zIndex: 20 }}>
+                                {tier.isPopular && (
+                                    <div className="px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-blue-600 shadow-lg whitespace-nowrap">
+                                        MOST POPULAR
+                                    </div>
+                                )}
+                                {tier.isBestValue && (
+                                    <div className="px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-slate-900 shadow-lg whitespace-nowrap border border-slate-700">
+                                        CUSTOM
+                                    </div>
+                                )}
                             </div>
                         )}
 
