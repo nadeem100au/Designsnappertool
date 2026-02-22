@@ -13,11 +13,12 @@ import { Toaster } from 'sonner';
 import { AuthPage } from './components/AuthPage';
 import { CompleteProfilePage } from './components/CompleteProfilePage';
 import { PricingPage } from './components/PricingPage';
+import { ContactPage } from './components/ContactPage';
 import { supabase } from './utils/supabase/client';
 import { Session } from '@supabase/supabase-js';
 import { useCredits } from './hooks/useCredits';
 
-type Screen = 'landing' | 'upload' | 'dashboard' | 'report' | 'influencer-library' | 'chat' | 'auth' | 'complete-profile' | 'pricing';
+type Screen = 'landing' | 'upload' | 'dashboard' | 'report' | 'influencer-library' | 'chat' | 'auth' | 'complete-profile' | 'pricing' | 'contact';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('landing');
@@ -75,6 +76,7 @@ export default function App() {
       case 'auth': return 'Sign In - Design Snapper';
       case 'complete-profile': return 'Complete Profile - Design Snapper';
       case 'pricing': return 'Pricing - Design Snapper';
+      case 'contact': return 'Contact Us - Design Snapper';
       default: return 'Design Snapper';
     }
   };
@@ -90,6 +92,7 @@ export default function App() {
       case 'auth': return '/auth';
       case 'complete-profile': return '/complete-profile';
       case 'pricing': return '/pricing';
+      case 'contact': return '/contact';
       default: return '/';
     }
   };
@@ -196,6 +199,7 @@ export default function App() {
             setCurrentScreen('landing');
           }
           break;
+        case '/contact': setCurrentScreen('contact'); break;
         default: setCurrentScreen('landing');
       }
       setIsLoading(false);
@@ -226,6 +230,7 @@ export default function App() {
           case '/library': setCurrentScreen('influencer-library'); break;
           case '/chat': setCurrentScreen('chat'); break;
           case '/pricing': setCurrentScreen('pricing'); break;
+          case '/contact': setCurrentScreen('contact'); break;
           case '/complete-profile': setCurrentScreen('complete-profile'); break;
           default: setCurrentScreen('landing');
         }
@@ -285,6 +290,8 @@ export default function App() {
         return <CompleteProfilePage onNavigate={navigateToScreen} />;
       case 'pricing':
         return <PricingPage onNavigate={navigateToScreen} session={session} />;
+      case 'contact':
+        return <ContactPage onNavigate={navigateToScreen} />;
       default:
         return <LandingPage onNavigate={navigateToScreen} />;
     }

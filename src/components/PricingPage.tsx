@@ -114,8 +114,7 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
     const handleUpgrade = (tierId: string) => {
         if (tierId === 'starter') return;
         if (tierId === 'elite') {
-            window.location.href = 'mailto:hello@designsnapper.com';
-            toast.info('Please contact us to upgrade to the Elite plan!');
+            onNavigate('contact');
             return;
         }
 
