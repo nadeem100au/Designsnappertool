@@ -52,7 +52,7 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
             priceSubtext: 'forever',
             description: "Try Design Snapper risk-free",
             features: [
-                { text: '3 Free Design Audits', bold: true },
+                { text: '3 Free Design Audits' },
                 { text: 'AI-Powered Analysis' },
                 { text: 'WCAG Contrast Checks' },
                 { text: 'Heuristic Evaluation' },
@@ -73,8 +73,8 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
             priceSubtext: 'one-time',
             description: "Unlock the full power of Snapper",
             features: [
-                { text: '30 Design Audit Credits', bold: true },
-                { text: `~${isIndia ? '₹16.67' : '$0.30'} per audit`, bold: true },
+                { text: '30 Design Audit Credits' },
+                { text: `~${isIndia ? '₹16.67' : '$0.30'} per audit` },
                 { text: 'All AI Models (incl. Claude Opus)' },
                 { text: 'Premium Expert Personas' },
                 { text: 'Full Audit History' },
@@ -90,14 +90,14 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
         {
             id: 'elite',
             name: 'Elite',
-            price: isIndia ? '₹1,500' : '$29',
-            priceSubtext: '/mo',
+            price: 'Custom audits',
+            priceSubtext: '',
             description: "Maximum power & support",
             features: [
                 { text: 'Unlimited Design Audits' },
                 { text: 'Custom Audit Criteria' },
                 { text: 'Team Collaboration' },
-                { text: 'White-label Reports', exclusive: true, bold: true },
+                { text: 'White-label Reports' },
                 { text: '24/7 Priority Support' },
             ],
             icon: <Crown className="w-6 h-6" style={{ color: '#f59e0b' }} />,
@@ -281,7 +281,7 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
                         )}
                         {tier.isBestValue && (
                             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase text-white bg-slate-900 shadow-lg whitespace-nowrap border border-slate-700">
-                                CONTACT US
+                                CUSTOM
                             </div>
                         )}
 
@@ -306,11 +306,11 @@ export function PricingPage({ onNavigate, session }: PricingPageProps) {
                             {/* Price & Name */}
                             <div className="space-y-1 w-full">
                                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{tier.name}</h3>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-4xl font-black text-slate-900">
+                                <div className="flex items-baseline gap-2 w-full">
+                                    <span className={`font-black text-slate-900 truncate ${tier.id === 'elite' ? 'text-[32px] tracking-tight' : 'text-4xl'}`}>
                                         {tier.price}
                                     </span>
-                                    <span className="text-sm font-bold text-slate-400">{tier.priceSubtext}</span>
+                                    {tier.priceSubtext && <span className="text-sm font-bold text-slate-400">{tier.priceSubtext}</span>}
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium pt-1">{tier.description}</p>
                             </div>
