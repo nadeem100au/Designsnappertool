@@ -904,7 +904,7 @@ export function UploadPage({ onNavigate, data, session, onSignOut, credits: cred
                       <Loader2 className="absolute w-8 h-8 animate-spin text-primary" />
                     </div>
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Vision Engine Analysis</h2>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Analyzing Your Design</h2>
                   <p className="text-slate-500 font-medium">Scanning based on {Object.values(selectedCriteria).flat().length} criteria...</p>
                 </div>
                 <div className="space-y-4">

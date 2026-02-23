@@ -5,18 +5,20 @@ interface SEOProps {
   description?: string;
   image?: string;
   url?: string;
+  schemaData?: any;
 }
 
 export function SEO({
   title = "Design Snapper - The Ultimate AI Design Audit Tool",
-  description = "Design Snapper is the premier tool for designers to snap, annotate, and share their work. Get instant feedback on Accessibility, UX, and more from expert personas.",
+  description = "Design Snapper is the premier tool for designers to snap, annotate, and share their work. Get an instant Design Snapper audit with feedback on Accessibility, UX, and more from expert personas.",
   image = "https://www.designsnapper.com/og-image.jpg",
-  url = window.location.href
+  url = typeof window !== 'undefined' ? window.location.href : "https://www.designsnapper.com",
+  schemaData
 }: SEOProps) {
   const siteTitle = title === "Design Snapper - AI Design Audit Tool" ? title : `${title} | Design Snapper`;
   const canonicalUrl = url.split('?')[0].split('#')[0]; // Clean URL for canonical
 
-  const schemaData = {
+  const defaultSchemaData = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "Design Snapper",
@@ -38,6 +40,8 @@ export function SEO({
     }
   };
 
+  const finalSchema = schemaData || defaultSchemaData;
+
   return (
     <Helmet>
       {/* Primary Meta Tags */}
@@ -50,7 +54,7 @@ export function SEO({
 
       {/* Structured Data */}
       <script type="application/ld+json">
-        {JSON.stringify(schemaData)}
+        {JSON.stringify(finalSchema)}
       </script>
 
       {/* Open Graph / Facebook */}

@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import type { Session } from '@supabase/supabase-js';
 import { UserProfileMenu } from './UserProfileMenu';
-
+import { SEO } from './SEO';
 
 import saasMockup from 'figma:asset/59f7c40d3db6dd1bd00dec669d25e2bff24a123c.png';
 
@@ -347,8 +347,43 @@ function ProductShowcase() {
 export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps) {
   const user = session?.user;
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is Design Snapper?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Design Snapper is an AI design reviewer and automated design audit tool. It helps product teams and designers automatically catch accessibility issues, UX inconsistencies, and visual hierarchy flaws before shipping."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does the Design Snapper audit work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Simply upload your design screens or paste a URL. The Design Snapper Vision AI engine scans your UI against WCAG 2.1 compliance rules, cognitive load heuristics, and standard UI/UX best practices in seconds."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Design Snapper good for accessibility audits?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! The Design Snapper Accessibility Audit specializes in checking WCAG contrast ratios, touch target sizing, ARIA states, and screen reader compatibility."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-slate-900 selection:bg-primary/10 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif] overflow-x-hidden">
+      <SEO
+        title="Design Snapper - The Ultimate AI Design Audit & Critique Tool"
+        schemaData={faqSchema}
+      />
       {/* Background Elements */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div
@@ -675,6 +710,39 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
                 {feature.desc}
               </p>
             </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ Section for SEO */}
+      <section className="relative z-10 max-w-4xl mx-auto px-6 py-20">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight text-slate-900">
+            Frequently Asked Questions
+          </h2>
+          <p className="text-lg text-slate-500 font-medium">
+            Everything you need to know about the Design Snapper audit tool.
+          </p>
+        </div>
+        <div className="space-y-6">
+          {[
+            {
+              q: "What is Design Snapper?",
+              a: "Design Snapper is an AI design reviewer and automated design audit tool. It helps product teams and designers automatically catch accessibility issues, UX inconsistencies, and visual hierarchy flaws before shipping."
+            },
+            {
+              q: "How does the Design Snapper audit work?",
+              a: "Simply upload your design screens or paste a URL. The Design Snapper Vision AI engine scans your UI against WCAG 2.1 compliance rules, cognitive load heuristics, and standard UI/UX best practices in seconds."
+            },
+            {
+              q: "Is Design Snapper good for accessibility audits?",
+              a: "Yes! The Design Snapper Accessibility Audit specializes in checking WCAG contrast ratios, touch target sizing, ARIA states, and screen reader compatibility."
+            }
+          ].map((faq, i) => (
+            <div key={i} className="bg-white border border-slate-200 rounded-3xl p-8 hover:shadow-md transition-shadow">
+              <h3 className="text-xl font-bold mb-3 text-slate-900">{faq.q}</h3>
+              <p className="text-slate-500 leading-relaxed font-medium">{faq.a}</p>
+            </div>
           ))}
         </div>
       </section>
