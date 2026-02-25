@@ -16,7 +16,63 @@ interface LandingPageProps {
   onSignOut?: () => void;
 }
 
-
+const SAMPLE_REPORT_DATA = {
+  screenshot: saasMockup,
+  designType: 'UX',
+  analysisMode: 'demo',
+  annotations: [
+    {
+      id: 1,
+      x: 20,
+      y: 24,
+      type: 'accessibility',
+      severity: 'critical',
+      title: 'Low Contrast on Navigation Links',
+      description: 'The navigation text fails WCAG AA standards with a 2.4:1 ratio against the white background.',
+      fix: 'Increase font weight to 600 or use a darker slate-900 color for the text.'
+    },
+    {
+      id: 2,
+      x: 68,
+      y: 38,
+      type: 'usability',
+      severity: 'critical',
+      title: 'Small Touch Target for Search',
+      description: 'The search icon hit area is only 32px, which is below the recommended 44px minimum for mobile usability.',
+      fix: 'Increase padding around the icon to expand the interactive touch area to at least 44x44px.'
+    },
+    {
+      id: 3,
+      x: 35,
+      y: 60,
+      type: 'consistency',
+      severity: 'minor',
+      title: 'Inconsistent Icon Stroke Weight',
+      description: 'The dashboard icons use a 2px stroke while the settings icons use a 1.5px stroke.',
+      fix: 'Standardize all system icons to a consistent 2px stroke weight for brand harmony.'
+    },
+    {
+      id: 4,
+      x: 55,
+      y: 82,
+      type: 'accessibility',
+      severity: 'critical',
+      title: 'Missing ARIA State on Sidebar',
+      description: 'The collapsible sidebar menu items do not communicate their expanded/collapsed state to screen readers.',
+      fix: 'Add aria-expanded="true/false" to the menu trigger elements.'
+    },
+    {
+      id: 5,
+      x: 15,
+      y: 85,
+      type: 'visual',
+      severity: 'minor',
+      title: 'Subtle Alignment Drift',
+      description: 'The footer logo is offset by 4px from the main left margin grid.',
+      fix: 'Align the logo to the 24px left padding used throughout the layout.'
+    }
+  ]
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -391,10 +447,10 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
             <span className="uppercase flex items-center gap-2"><Sparkles className="w-4 h-4" />Vision AI Audit Engine v4.0</span>
           </motion.div>
           <motion.h1 variants={itemVariants} className="text-7xl md:text-9xl font-black mb-10 leading-[0.95] tracking-tighter text-slate-900">
-            The #1 AI Design<br /><span className="text-slate-300">Reviewer.</span>
+            Design Snapper.<br /><span className="text-slate-300">The #1 AI Design Reviewer.</span>
           </motion.h1>
           <motion.p variants={itemVariants} className="text-2xl text-slate-500 mb-14 max-w-3xl mx-auto leading-relaxed font-medium">
-            Stop manual UI reviews. Use the ultimate <strong className="text-slate-900 font-black">design review tool</strong> to get an instant <strong className="text-slate-900 font-black">design audit</strong> and <strong className="text-slate-900 font-black">AI design critique</strong> in seconds.
+            Stop manual UI reviews. Use <strong className="text-slate-900 font-black">Design Snapper</strong>, the ultimate <strong className="text-slate-900 font-black">design review tool</strong>, to get an instant <strong className="text-slate-900 font-black">design audit</strong> and <strong className="text-slate-900 font-black">AI design critique</strong> in seconds.
           </motion.p>
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-5 justify-center items-center">
             <Button size="lg" onClick={() => onNavigate('upload')} className="h-16 px-12 text-xl bg-slate-900 hover:bg-slate-800 text-white rounded-[24px] font-black shadow-2xl transition-all hover:scale-[1.02] active:scale-95 group">
@@ -403,10 +459,10 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
             <Button
               variant="outline"
               size="lg"
-              onClick={() => onNavigate('pricing')}
+              onClick={() => onNavigate('dashboard', SAMPLE_REPORT_DATA)}
               className="h-16 px-12 text-xl border-slate-200 hover:bg-slate-50 text-slate-900 rounded-[24px] font-black"
             >
-              View Pricing
+              View Live Demo
             </Button>
           </motion.div>
         </motion.div>
