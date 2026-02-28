@@ -380,7 +380,7 @@ export function LandingPage({ onNavigate, session, onSignOut }: LandingPageProps
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-slate-900 selection:bg-primary/10 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif] overflow-x-hidden">
+    <div className="min-h-screen bg-[#FDFDFD] text-slate-900 selection:bg-primary/10 font-['Helvetica_Neue',_Helvetica,_Arial,_sans-serif] overflow-x-hidden" style={{ zoom: 0.80 }}>
       <SEO
         title="Design Snapper - The Ultimate AI Design Audit & Critique Tool"
         schemaData={faqSchema}
