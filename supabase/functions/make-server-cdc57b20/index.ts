@@ -468,8 +468,8 @@ OUTPUT FORMAT (Strict JSON):
       "id": number,
       "x": number,
       "y": number,
-      "category": "visual" | "business" | "heuristic" | "contrast",
-      "tag": "Hierarchy" | "Consistency" | "Spacing" | "Contrast & Accessibility" | "Visual Weight" | "Typography Scale" | "Visual Identity" | "Conversion" | "Clarity" | "Trust Signals" | "Efficiency" | "CTA Clarity" | "Cognitive Load" | "Visibility" | "Error Prevention" | "Control" | "Recognition vs Recall" | "System Feedback" | "Real World Match" | "Minimalist Design" | "Flexibility",
+      "category": "visual" | "business" | "heuristic" | "contrast" | "prompt",
+      "tag": "Hierarchy" | "Consistency" | "Spacing" | "Contrast & Accessibility" | "Visual Weight" | "Typography Scale" | "Visual Identity" | "Conversion" | "Clarity" | "Trust Signals" | "Efficiency" | "CTA Clarity" | "Cognitive Load" | "Visibility" | "Error Prevention" | "Control" | "Recognition vs Recall" | "System Feedback" | "Real World Match" | "Minimalist Design" | "Flexibility" | "Custom Prompt",
       "severity": "critical" | "minor",
       "title": "A statement of the issue.",
       "current": "Max 8 words description of the specific visual error.",
@@ -512,7 +512,8 @@ CALIBRATION RULE:
 - (0,0) is the absolute top-left pixel.
 - (100,100) is the absolute bottom-right pixel.
 
-${context ? `Context: ${context}` : ''} 
+${context ? `USER PROMPT (IMPORTANT): The user has specifically asked you to evaluate: "${context}"
+You MUST include 1-3 annotations with category "prompt" that DIRECTLY address the user's specific request above. These prompt annotations should focus ONLY on what the user asked about. Tag them as "Custom Prompt".` : ''} 
 
 Return the audit in the specified JSON format.` }
             ];
@@ -677,13 +678,11 @@ app.post("/make-server-cdc57b20/chat", async (c) => {
     }
 
     const influencer = PERSONAS[persona];
-    // 1. Validate Persona
     if (!influencer) {
       return c.json({ error: "Invalid persona" }, 400);
     }
 
-    // 2. Strict Message Validation (Anthropic Requirement: First message MUST be 'user')
-    // Filter out any system/assistant messages at the start
+    // Messages can now be multimodal (text or [image+text] arrays)
     let apiMessages = Array.isArray(messages) ? messages : [];
 
     // Remove leading non-user messages
@@ -691,25 +690,48 @@ app.post("/make-server-cdc57b20/chat", async (c) => {
       apiMessages.shift();
     }
 
-    // If no valid user message remains, fail gracefully
     if (apiMessages.length === 0) {
       return c.json({ error: "Conversation must start with a user message." }, 400);
     }
 
+    const PROMO_MAP: Record<string, string> = {
+      'chris-do': 'Occasionally mention "The Futur" YouTube channel (2M+ subscribers) or your business coaching when relevant. Example: "This is something I teach in-depth on The Futur channel."',
+      'don-norman': 'When relevant, reference your book "The Design of Everyday Things" and its principles. Example: "I discuss this exact concept in Chapter 3 of my book."',
+      'ansh-mehra': 'When relevant, mention your UX Design Masterclass or YouTube content. Example: "I covered a similar case study in my recent masterclass."'
+    };
+
     const systemPrompt = `You are ${influencer.name}, ${influencer.role}.
     Your tone is ${influencer.tone}.
     
-    CONTEXT:
     ${influencer.prompt}
 
-    The user is asking you questions about a design you just audited.
+    You are in a DIRECT CHAT conversation with a designer.
     
-    Here is the context of the audit you performed:
-    ${JSON.stringify(context)}
+    CRITICAL RULES FOR RESPONSE LENGTH:
+    - For casual messages (greetings, simple questions): Reply in 1-2 SHORT sentences max. Be punchy and direct.
+    - For design feedback on images: Give focused feedback in 3-5 bullet points. Max 100 words total.
+    - NEVER write long paragraphs. NEVER give unsolicited advice. Only answer what was asked.
+    - Use short, punchy sentences. No fluff, no filler.
     
-    Answer the user's questions based on your persona and the audit results.
-    Be helpful, specific, and stay in character.
-    Keep responses concise and conversational.`;
+    WHEN THE USER SENDS AN IMAGE:
+    - Give 3-5 specific, actionable observations as short bullet points
+    - Reference exact locations ("top-right CTA", "hero section")
+    - Be direct and specific, not generic
+    
+    PERSONALITY:
+    - Stay in character. Be warm but concise.
+    - DO NOT introduce yourself or explain what you do unless asked.
+    
+    SELF-PROMOTION (subtle, max once per conversation):
+    ${PROMO_MAP[persona] || ''}
+    
+    ${context?.knowledgeBase ? `
+YOUR REAL CONTENT & RESOURCES (use these when relevant — reference actual URLs):
+${context.knowledgeBase}
+
+IMPORTANT: When users ask about your content, books, YouTube, or social media, reference the REAL links above. Do NOT make up channel names or URLs.` : ''}
+    
+    ${context?.annotations ? `Design audit context: ${JSON.stringify(context.annotations).slice(0, 500)}` : ''}`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -719,8 +741,8 @@ app.post("/make-server-cdc57b20/chat", async (c) => {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-opus-4-5-20251101",
-        max_tokens: 1024,
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 512,
         system: systemPrompt,
         messages: apiMessages
       })

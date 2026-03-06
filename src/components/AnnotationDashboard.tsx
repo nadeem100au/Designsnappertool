@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Resizable } from 're-resizable';
+import ReactMarkdown from 'react-markdown';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -30,7 +31,9 @@ import {
   MessageSquare,
   Send,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Maximize2,
+  ImagePlus
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { HeatmapCanvas } from './HeatmapCanvas';
@@ -42,7 +45,7 @@ interface Annotation {
   id: number;
   x: number;
   y: number;
-  category: 'visual' | 'business' | 'heuristic' | 'contrast';
+  category: 'visual' | 'business' | 'heuristic' | 'contrast' | 'prompt';
   tag: string;
   severity: 'critical' | 'minor';
   title: string;
@@ -79,6 +82,7 @@ interface AnnotationDashboardProps {
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string | Array<{ type: string; text?: string; source?: any }>;
+  image?: string;
 }
 
 import { UserProfileMenu } from './UserProfileMenu';
@@ -100,9 +104,11 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatAttachedImage, setChatAttachedImage] = useState<string | null>(null);
 
   const images = data.images || [data.screenshot];
   const heights = data.imageHeights || [];
@@ -256,19 +262,42 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
-    const newMessage: ChatMessage = { role: 'user', content: chatInput };
+    if ((!chatInput.trim() && !chatAttachedImage) || isChatLoading) return;
+    const imageToSend = chatAttachedImage;
+    const newMessage: ChatMessage = {
+      role: 'user',
+      content: chatInput || 'Please analyze this design.',
+      image: imageToSend || undefined,
+    };
     setChatMessages(prev => [...prev, newMessage]);
     setChatInput('');
+    setChatAttachedImage(null);
     setIsChatLoading(true);
     try {
       let personaKey = 'chris-do';
       if (data.influencerReview?.persona.includes('Don')) personaKey = 'don-norman';
       if (data.influencerReview?.persona.includes('Ansh')) personaKey = 'ansh-mehra';
+
+      // Build API messages — convert image messages to multimodal format
+      const apiMessages = [...chatMessages, newMessage].map(msg => {
+        if (msg.image) {
+          const base64 = (msg.image as string).split(',')[1] || msg.image;
+          const mediaType = (msg.image as string).split(';')[0].split(':')[1] || 'image/png';
+          return {
+            role: msg.role,
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              { type: 'text', text: (msg.content as string) || 'Please analyze this design.' }
+            ]
+          };
+        }
+        return { role: msg.role, content: msg.content };
+      });
+
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-cdc57b20/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
-        body: JSON.stringify({ messages: [...chatMessages, newMessage], persona: personaKey, context: { annotations: data.annotations, influencerReview: data.influencerReview } })
+        body: JSON.stringify({ messages: apiMessages, persona: personaKey, context: { annotations: data.annotations, influencerReview: data.influencerReview } })
       });
       const result = await response.json();
       setChatMessages(prev => [...prev, { role: 'assistant', content: result.message }]);
@@ -458,7 +487,7 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
                         <div className="flex gap-4">
                           {/* Indicator Column */}
                           <div className="flex flex-col items-center shrink-0">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${annotation.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'}`}>
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${annotation.category === 'prompt' ? 'bg-violet-600' : annotation.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'}`}>
                               {annotation.id}
                             </div>
                             {selectedAnnotation === annotation.id && (
@@ -469,7 +498,7 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
                           {/* Content Column */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">
+                              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${annotation.category === 'prompt' ? 'text-violet-700 bg-violet-50 border-violet-200' : 'text-primary bg-primary/5 border-primary/10'}`}>
                                 {annotation.tag}
                               </span>
                             </div>
@@ -535,15 +564,81 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
                   ) : (
                     <div className="flex-1 flex flex-col min-h-0">
                       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" ref={chatScrollRef}>
+                        {chatMessages.length === 0 && (
+                          <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                            <p className="text-xs text-slate-400 font-medium">Ask the expert anything about your design.</p>
+                            <button onClick={() => onNavigate('chat', data)} className="text-[10px] text-primary font-bold flex items-center gap-1 hover:underline">
+                              <Maximize2 className="w-3 h-3" /> Open full chat
+                            </button>
+                          </div>
+                        )}
                         {chatMessages.map((msg, i) => (
                           <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                            <div className={`p-3 rounded-2xl max-w-[80%] text-sm ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-white border shadow-sm'}`}>{msg.content as string}</div>
+                            {msg.image && (
+                              <div className="rounded-lg overflow-hidden border border-slate-200 max-w-[200px]">
+                                <img src={msg.image} alt="Upload" className="w-full h-auto" />
+                              </div>
+                            )}
+                            <div className={`p-3 rounded-2xl max-w-[80%] text-sm overflow-hidden ${msg.role === 'user' ? 'bg-blue-50 text-slate-800 border border-blue-100' : 'bg-white border shadow-sm'}`}>
+                              {msg.role === 'user' ? (
+                                msg.content as string
+                              ) : (
+                                <div className="prose prose-sm prose-slate max-w-none prose-p:leading-relaxed prose-p:my-1 prose-ul:my-1 prose-li:my-0">
+                                  <ReactMarkdown>
+                                    {msg.content as string}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ))}
+                        {isChatLoading && (
+                          <div className="flex gap-3">
+                            <div className="bg-white border shadow-sm p-3 rounded-2xl flex gap-1.5 items-center">
+                              <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="p-4 border-t bg-white flex gap-2">
-                        <Input placeholder="Ask..." className="rounded-xl h-10" value={chatInput} onChange={(e) => setChatInput(e.target.value)} disabled={isChatLoading} />
-                        <Button size="icon" className="h-10 w-10 bg-slate-900" onClick={handleSendMessage} disabled={!chatInput.trim() || isChatLoading}><Send className="w-4 h-4" /></Button>
+                      <div className="p-3 border-t bg-white">
+                        <form onSubmit={handleSendMessage} className="flex gap-2">
+                          <input
+                            type="file"
+                            ref={chatFileInputRef}
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                setChatAttachedImage(ev.target?.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                              e.target.value = '';
+                            }}
+                          />
+                          <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700" onClick={() => chatFileInputRef.current?.click()}>
+                            <ImagePlus className="w-4 h-4" />
+                          </Button>
+                          <div className="flex-1 relative">
+                            {chatAttachedImage && (
+                              <div className="absolute -top-16 left-0 z-10">
+                                <div className="relative inline-block">
+                                  <img src={chatAttachedImage} alt="Attached" className="h-12 rounded border shadow-sm" />
+                                  <button type="button" onClick={() => setChatAttachedImage(null)} className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[8px]">✕</button>
+                                </div>
+                              </div>
+                            )}
+                            <Input placeholder="Ask..." className="rounded-xl h-10" value={chatInput} onChange={(e) => setChatInput(e.target.value)} disabled={isChatLoading} />
+                          </div>
+                          <Button type="submit" size="icon" className="h-10 w-10 bg-slate-900" disabled={(!chatInput.trim() && !chatAttachedImage) || isChatLoading}><Send className="w-4 h-4" /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700" onClick={() => onNavigate('chat', data)} title="Open full chat">
+                            <Maximize2 className="w-4 h-4" />
+                          </Button>
+                        </form>
                       </div>
                     </div>
                   )}

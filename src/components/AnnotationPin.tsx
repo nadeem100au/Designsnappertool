@@ -7,7 +7,7 @@ interface Annotation {
   id: number;
   x: number;
   y: number;
-  category: 'visual' | 'business' | 'heuristic' | 'contrast';
+  category: 'visual' | 'business' | 'heuristic' | 'contrast' | 'prompt';
   tag: string;
   severity: 'critical' | 'minor';
   title: string;
@@ -123,6 +123,7 @@ export function AnnotationPin({ annotation, isSelected, onSelect, onLearnMore }:
       case 'visual': return 'bg-pink-50 text-pink-700 border-pink-100';
       case 'business': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
       case 'heuristic': return 'bg-amber-50 text-amber-700 border-amber-100';
+      case 'prompt': return 'bg-violet-50 text-violet-700 border-violet-200';
       default: return 'bg-slate-50 text-slate-700 border-slate-100';
     }
   };
@@ -142,7 +143,7 @@ export function AnnotationPin({ annotation, isSelected, onSelect, onLearnMore }:
         }}
         className={`absolute flex items-center justify-center rounded-full cursor-pointer
           border-[2px] border-white shadow-lg transition-all
-          ${getSeverityColor(annotation.severity)}
+          ${annotation.category === 'prompt' ? 'bg-violet-600' : getSeverityColor(annotation.severity)}
           ${isSelected ? 'ring-[3px] ring-offset-1 ring-white/70' : ''}
         `}
         style={{
@@ -191,7 +192,7 @@ export function AnnotationPin({ annotation, isSelected, onSelect, onLearnMore }:
                 <div className="flex gap-4">
                   {/* Indicator Column */}
                   <div className="flex flex-col items-center shrink-0">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${annotation.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${annotation.category === 'prompt' ? 'bg-violet-600' : annotation.severity === 'critical' ? 'bg-red-500' : 'bg-blue-500'}`}>
                       {annotation.id}
                     </div>
                   </div>
@@ -199,7 +200,7 @@ export function AnnotationPin({ annotation, isSelected, onSelect, onLearnMore }:
                   {/* Content Column */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${annotation.category === 'prompt' ? 'text-violet-700 bg-violet-50 border-violet-200' : 'text-primary bg-primary/5 border-primary/10'}`}>
                         {annotation.tag}
                       </span>
                     </div>
