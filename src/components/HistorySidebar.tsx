@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Clock, ChevronRight, AlertCircle, CheckCircle2, Layout, ExternalLink, Loader2 } from 'lucide-react';
+import { X, Clock, ChevronRight, AlertCircle, Layout, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { getUserAudits } from '../utils/supabase/database';
+import { getUserAudits, getAuditById } from '../utils/supabase/database';
 import { formatDistanceToNow } from 'date-fns';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
@@ -17,6 +17,7 @@ interface HistorySidebarProps {
 export function HistorySidebar({ isOpen, onClose, onSelectAudit, userId }: HistorySidebarProps) {
     const [audits, setAudits] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingFullAudit, setLoadingFullAudit] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
 
@@ -38,11 +39,17 @@ export function HistorySidebar({ isOpen, onClose, onSelectAudit, userId }: Histo
         }
     }, [isOpen, userId]);
 
-    const getStats = (audit: any) => {
-        const annotations = audit.analysis_data?.annotations || [];
-        const critical = annotations.filter((a: any) => a.severity === 'critical').length;
-        const minor = annotations.filter((a: any) => a.severity === 'minor').length;
-        return { critical, minor };
+    const handleAuditClick = async (audit: any) => {
+        try {
+            setLoadingFullAudit(true);
+            const fullAudit = await getAuditById(audit.id);
+            onSelectAudit(fullAudit);
+            onClose();
+        } catch (err) {
+            console.error("Failed to fetch full audit", err);
+        } finally {
+            setLoadingFullAudit(false);
+        }
     };
 
     if (!mounted) return null;
@@ -104,7 +111,6 @@ export function HistorySidebar({ isOpen, onClose, onSelectAudit, userId }: Histo
                                 </div>
                             ) : (
                                 audits.map((audit, index) => {
-                                    const stats = getStats(audit);
                                     return (
                                         <motion.div
                                             key={audit.id}
@@ -113,10 +119,7 @@ export function HistorySidebar({ isOpen, onClose, onSelectAudit, userId }: Histo
                                             transition={{ delay: index * 0.05 }}
                                             whileHover={{ scale: 1.02 }}
                                             whileTap={{ scale: 0.98 }}
-                                            onClick={() => {
-                                                onSelectAudit(audit);
-                                                onClose();
-                                            }}
+                                            onClick={() => handleAuditClick(audit)}
                                             className="group p-4 bg-white border border-slate-100 rounded-2xl hover:border-primary/30 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden"
                                         >
                                             <div className="flex gap-4">
@@ -144,23 +147,16 @@ export function HistorySidebar({ isOpen, onClose, onSelectAudit, userId }: Histo
                                                         <Clock className="w-3 h-3" />
                                                         {formatDistanceToNow(new Date(audit.created_at), { addSuffix: true })}
                                                     </p>
-
-                                                    <div className="flex gap-2">
-                                                        <div className="px-2 py-0.5 bg-red-50 rounded-md border border-red-100 flex items-center gap-1">
-                                                            <AlertCircle className="w-2.5 h-2.5 text-red-500" />
-                                                            <span className="text-[9px] font-black text-red-600">{stats.critical}</span>
-                                                        </div>
-                                                        <div className="px-2 py-0.5 bg-blue-50 rounded-md border border-blue-100 flex items-center gap-1">
-                                                            <CheckCircle2 className="w-2.5 h-2.5 text-primary" />
-                                                            <span className="text-[9px] font-black text-primary">{stats.minor}</span>
-                                                        </div>
-                                                    </div>
                                                 </div>
                                             </div>
 
                                             {/* Hover Indicator */}
                                             <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <ExternalLink className="w-3 h-3 text-primary" />
+                                                {loadingFullAudit ? (
+                                                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                                                ) : (
+                                                    <ExternalLink className="w-3 h-3 text-primary" />
+                                                )}
                                             </div>
                                         </motion.div>
                                     );

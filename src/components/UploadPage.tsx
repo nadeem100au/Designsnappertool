@@ -513,7 +513,7 @@ export function UploadPage({ onNavigate, data, session, onSignOut, credits: cred
         toast.success('Audit complete!');
       }
 
-      const analysisData = {
+      let finalAnalysisData = {
         screenshot: stitchedImage,
         images: uploadedImages,
         imageHeights: heights,
@@ -527,15 +527,29 @@ export function UploadPage({ onNavigate, data, session, onSignOut, credits: cred
 
       if (session) {
         try {
-          // Upload image and save audit in background
+          // Upload all images to Storage to avoid saving base64 to DB
           const imageUrl = await uploadAuditImage(stitchedImage, session.user.id);
+          const uploadedImageUrls = await Promise.all(
+            uploadedImages.map(img => uploadAuditImage(img, session.user.id))
+          );
+
           if (imageUrl) {
+            // Replace base64 strings with public URLs for the database payload
+            const dbAnalysisData = {
+              ...finalAnalysisData,
+              screenshot: imageUrl,
+              images: uploadedImageUrls.map((url, i) => url || uploadedImages[i]) // fallback to base64 if upload fails
+            };
+
             await saveAudit(
               session.user.id,
-              analysisData,
+              dbAnalysisData,
               imageUrl,
               analysisContext || `Design Audit ${new Date().toLocaleDateString()}`
             );
+
+            // Update the payload so any subsequent sharing uses the lightweight URLs
+            finalAnalysisData = dbAnalysisData;
           }
         } catch (err) {
           console.error('Failed to save audit history:', err);
@@ -545,7 +559,7 @@ export function UploadPage({ onNavigate, data, session, onSignOut, credits: cred
 
       setTimeout(() => {
         setIsAnalyzing(false);
-        onNavigate('dashboard', analysisData);
+        onNavigate('dashboard', finalAnalysisData);
       }, 800);
 
     } catch (error: any) {

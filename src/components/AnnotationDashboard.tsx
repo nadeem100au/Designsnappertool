@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize2,
+  MessageCircle,
   ImagePlus
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -40,6 +41,7 @@ import { HeatmapCanvas } from './HeatmapCanvas';
 import { AnnotationPin } from './AnnotationPin';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { toast } from "sonner@2.0.3";
+import { loadChatMessages, saveChatMessages, getAuditId, PERSONA_DATA } from './InfluencerChat';
 
 interface Annotation {
   id: number;
@@ -105,7 +107,17 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  // Derive personaKey for shared localStorage
+  const personaKey = data.influencerReview?.persona.includes('Don') ? 'don-norman'
+    : data.influencerReview?.persona.includes('Ansh') ? 'ansh-mehra'
+      : 'chris-do';
+
+  const persona = PERSONA_DATA[personaKey] || PERSONA_DATA['chris-do'];
+
+  const auditId = getAuditId(data);
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadChatMessages(personaKey, auditId));
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatAttachedImage, setChatAttachedImage] = useState<string | null>(null);
@@ -123,10 +135,11 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
   }, [data.influencerReview]);
 
   useEffect(() => {
+    saveChatMessages(personaKey, auditId, chatMessages);
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatMessages, influencerView]);
+  }, [chatMessages, influencerView, personaKey, auditId]);
 
   const updateDimensions = () => {
     const currentSlideElement = scrollContainerRef.current?.children[currentSlide] as HTMLElement;
@@ -274,9 +287,7 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
     setChatAttachedImage(null);
     setIsChatLoading(true);
     try {
-      let personaKey = 'chris-do';
-      if (data.influencerReview?.persona.includes('Don')) personaKey = 'don-norman';
-      if (data.influencerReview?.persona.includes('Ansh')) personaKey = 'ansh-mehra';
+      // personaKey already derived above as a constant
 
       // Build API messages — convert image messages to multimodal format
       const apiMessages = [...chatMessages, newMessage].map(msg => {
@@ -565,10 +576,25 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
                     <div className="flex-1 flex flex-col min-h-0">
                       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" ref={chatScrollRef}>
                         {chatMessages.length === 0 && (
-                          <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
-                            <p className="text-xs text-slate-400 font-medium">Ask the expert anything about your design.</p>
-                            <button onClick={() => onNavigate('chat', data)} className="text-[10px] text-primary font-bold flex items-center gap-1 hover:underline">
-                              <Maximize2 className="w-3 h-3" /> Open full chat
+                          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 px-2 py-6">
+                            <div className="w-16 h-16 rounded-full overflow-hidden shadow-md ring-2 ring-white">
+                              <ImageWithFallback src={persona?.image || ''} alt={persona?.name || 'Expert'} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="space-y-1">
+                              <h2 className="text-sm font-black text-slate-900 tracking-tight">Chat with {persona?.name || 'Expert'}</h2>
+                              <p className="text-[10px] text-slate-500 font-medium leading-relaxed">{persona?.role || 'Design Expert'}</p>
+                            </div>
+                            <div className="flex flex-wrap justify-center gap-1.5 w-full">
+                              {persona?.starters?.slice(0, 2).map((q: string, i: number) => (
+                                <Button key={i} variant="outline" size="sm" onClick={() => setChatInput(q)} className="h-7 gap-1 text-[10px] font-bold rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-all px-2.5">
+                                  <MessageCircle className="w-3 h-3 text-slate-400" />
+                                  {q}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="w-full h-px bg-slate-100 my-2" />
+                            <button onClick={() => onNavigate('chat', { ...data, selectedPersona: personaKey })} className="text-[10px] text-slate-500 font-bold flex items-center justify-center gap-1 hover:text-slate-800 transition-colors w-full border border-slate-200 bg-white rounded-lg py-2">
+                              <Maximize2 className="w-3 h-3" /> Open in Fullscreen
                             </button>
                           </div>
                         )}
@@ -579,7 +605,7 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
                                 <img src={msg.image} alt="Upload" className="w-full h-auto" />
                               </div>
                             )}
-                            <div className={`p-3 rounded-2xl max-w-[80%] text-sm overflow-hidden ${msg.role === 'user' ? 'bg-blue-50 text-slate-800 border border-blue-100' : 'bg-white border shadow-sm'}`}>
+                            <div className={`p-3 rounded-2xl max-w-[80%] text-sm overflow-hidden ${msg.role === 'user' ? 'bg-slate-100 text-slate-800 border border-slate-200 rounded-tr-sm' : 'bg-white border shadow-sm rounded-tl-sm'}`}>
                               {msg.role === 'user' ? (
                                 msg.content as string
                               ) : (
@@ -635,7 +661,7 @@ export function AnnotationDashboard({ onNavigate, data, session, onSignOut }: An
                             <Input placeholder="Ask..." className="rounded-xl h-10" value={chatInput} onChange={(e) => setChatInput(e.target.value)} disabled={isChatLoading} />
                           </div>
                           <Button type="submit" size="icon" className="h-10 w-10 bg-slate-900" disabled={(!chatInput.trim() && !chatAttachedImage) || isChatLoading}><Send className="w-4 h-4" /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700" onClick={() => onNavigate('chat', data)} title="Open full chat">
+                          <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700" onClick={() => onNavigate('chat', { ...data, selectedPersona: personaKey })} title="Open full chat">
                             <Maximize2 className="w-4 h-4" />
                           </Button>
                         </form>

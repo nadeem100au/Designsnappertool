@@ -282,7 +282,7 @@ export default function App() {
       case 'influencer-library':
         return <InfluencerLibrary onNavigate={navigateToScreen} data={analysisData} />;
       case 'chat':
-        return <InfluencerChat onNavigate={navigateToScreen} initialPersonaId={analysisData?.selectedPersona} data={analysisData} />;
+        return <InfluencerChat onNavigate={navigateToScreen} initialPersonaId={analysisData?.selectedPersona} data={analysisData} session={session} />;
       case 'auth':
         return <AuthPage onNavigate={navigateToScreen} />;
       case 'complete-profile':

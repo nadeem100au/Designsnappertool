@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowLeft, Send, Sparkles, Zap, ImagePlus, X, ExternalLink, BookOpen, Youtube, Megaphone, Library, Plus, Trash2, Link, Globe } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, ImagePlus, X, ExternalLink, BookOpen, Youtube, Megaphone, Library, Plus, Trash2, Link, Globe, MessageCircle, ChevronDown, User } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,7 +7,6 @@ import { Badge } from './ui/badge';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { toast } from "sonner@2.0.3";
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { Logo } from './Logo';
 
 import chrisDoImg from 'figma:asset/f06118d2873dad45c5862ba420d01cbfc1b6e927.png';
 import donNormanImg from 'figma:asset/2c130bc4e84408a24324181660b0d33e0e461f40.png';
@@ -23,6 +22,7 @@ interface InfluencerChatProps {
   onNavigate: (screen: string, data?: any) => void;
   initialPersonaId?: string;
   data?: any;
+  session?: any;
 }
 
 export interface KnowledgeItem {
@@ -61,7 +61,7 @@ const SEEDED_KNOWLEDGE: Record<string, KnowledgeItem[]> = {
   ],
 };
 
-const PERSONA_DATA: Record<string, {
+interface PersonaData {
   name: string;
   role: string;
   color: string;
@@ -70,7 +70,8 @@ const PERSONA_DATA: Record<string, {
   bio: string;
   starters: string[];
   promo: { type: 'book' | 'youtube' | 'campaign'; label: string; description: string; url: string };
-}> = {
+}
+export const PERSONA_DATA: Record<string, PersonaData> = {
   'chris-do': {
     name: 'Chris Do',
     role: 'Business Strategy & Branding',
@@ -129,6 +130,32 @@ const saveUserKnowledge = (personaId: string, items: KnowledgeItem[]) => {
   localStorage.setItem(getStorageKey(personaId), JSON.stringify(items));
 };
 
+export const getAuditId = (data: any) => {
+  if (!data) return 'default';
+  if (data.id) return data.id.toString();
+  const str = data.screenshot || '';
+  if (!str) return 'default';
+  let hash = 0;
+  for (let i = 0; i < Math.min(str.length, 100); i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return `audit_${Math.abs(hash)}`;
+};
+
+const getChatStorageKey = (personaId: string, auditId: string) => `ds_chat_${personaId}_${auditId}`;
+
+export const loadChatMessages = (personaId: string, auditId: string): ChatMessage[] => {
+  try {
+    const raw = localStorage.getItem(getChatStorageKey(personaId, auditId));
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+};
+
+export const saveChatMessages = (personaId: string, auditId: string, msgs: any[]) => {
+  localStorage.setItem(getChatStorageKey(personaId, auditId), JSON.stringify(msgs));
+};
+
 // ── Type icon helper ──────────────────────────────────────────────────
 const TypeIcon = ({ type }: { type: string }) => {
   switch (type) {
@@ -149,9 +176,10 @@ const TYPE_LABELS: Record<string, string> = {
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════
 
-export function InfluencerChat({ onNavigate, initialPersonaId = 'chris-do', data }: InfluencerChatProps) {
+export function InfluencerChat({ onNavigate, initialPersonaId = 'chris-do', data, session }: InfluencerChatProps) {
+  const auditId = getAuditId(data);
   const [activePersona, setActivePersona] = useState(initialPersonaId);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatMessages(initialPersonaId, auditId));
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
@@ -160,6 +188,7 @@ export function InfluencerChat({ onNavigate, initialPersonaId = 'chris-do', data
   const [newUrl, setNewUrl] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<KnowledgeItem['type']>('youtube');
+  const [showPersonaDropdown, setShowPersonaDropdown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -173,13 +202,14 @@ export function InfluencerChat({ onNavigate, initialPersonaId = 'chris-do', data
   }, [activePersona]);
 
   useEffect(() => {
+    saveChatMessages(activePersona, auditId, messages);
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, isLoading]);
+  }, [messages, activePersona, isLoading, auditId]);
 
   const switchPersona = (id: string) => {
     if (id === activePersona) return;
     setActivePersona(id);
-    setMessages([]);
+    setMessages(loadChatMessages(id, auditId));
     setInput('');
     setAttachedImage(null);
     setShowKnowledgeBase(false);
@@ -304,67 +334,59 @@ export function InfluencerChat({ onNavigate, initialPersonaId = 'chris-do', data
 
   return (
     <div className="flex h-screen bg-[#FDFDFD]">
-      {/* ── Sidebar: Persona Selector ──────────────────────────────── */}
-      <div className="w-[280px] bg-white border-r border-slate-100 flex flex-col shrink-0">
-        <div className="p-5 border-b border-slate-100">
-          <div className="flex items-center gap-2 mb-1 cursor-pointer" onClick={() => onNavigate('landing')}>
-            <Logo size="sm" />
-          </div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">AI Design Mentors</p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-          {Object.entries(PERSONA_DATA).map(([id, p]) => (
-            <button key={id} onClick={() => switchPersona(id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activePersona === id ? 'bg-slate-900 text-white shadow-lg' : 'bg-white hover:bg-slate-50 text-slate-700 border border-transparent hover:border-slate-200'}`}>
-              <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm">
-                <ImageWithFallback src={p.image} alt={p.name} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-bold truncate ${activePersona === id ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
-                <p className={`text-[10px] font-medium truncate ${activePersona === id ? 'text-white/60' : 'text-slate-400'}`}>{p.role}</p>
-              </div>
-              {activePersona === id && <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse shrink-0" />}
-            </button>
-          ))}
-        </div>
-
-        {/* Promo Card */}
-        <div className="p-3">
-          <a href={persona.promo.url} target="_blank" rel="noopener noreferrer"
-            className={`block p-4 rounded-xl bg-gradient-to-br ${persona.gradient} text-white transition-all hover:scale-[1.02] hover:shadow-lg`}>
-            <div className="flex items-center gap-2 mb-2">
-              <PromoIcon className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">
-                {persona.promo.type === 'book' ? 'Featured Book' : persona.promo.type === 'youtube' ? 'YouTube' : 'Campaign'}
-              </span>
-            </div>
-            <p className="text-sm font-bold leading-tight mb-1">{persona.promo.label}</p>
-            <p className="text-[11px] opacity-70 leading-snug">{persona.promo.description}</p>
-            <div className="flex items-center gap-1 mt-3 text-[10px] font-bold opacity-60"><ExternalLink className="w-3 h-3" /> Visit</div>
-          </a>
-        </div>
-      </div>
-
-      {/* ── Main Chat Area ─────────────────────────────────────────── */}
+      {/* ── Main Chat Area (full width, no sidebar) ──────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Nav */}
         <nav className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-6 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => onNavigate('landing')}>
+            <Button variant="ghost" size="icon" onClick={() => onNavigate('dashboard', data)}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-white shadow-md">
-              <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
-            </div>
-            <div>
-              <h1 className="text-sm font-black text-slate-900 leading-tight flex items-center gap-2">
-                {persona.name} <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              </h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{persona.role}</p>
+            <div className="relative z-50">
+              <button onClick={() => setShowPersonaDropdown(!showPersonaDropdown)} className="flex items-center gap-3 hover:bg-slate-50 rounded-xl px-2 py-1.5 transition-colors -ml-2">
+                <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-white shadow-md shrink-0">
+                  <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                </div>
+                <div className="text-left w-36 sm:w-auto">
+                  <h1 className="text-sm font-black text-slate-900 leading-tight flex items-center gap-2 truncate">
+                    {persona.name} <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  </h1>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{persona.role}</p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${showPersonaDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              {/* Persona Dropdown */}
+              {showPersonaDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPersonaDropdown(false)} />
+                  <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-2 space-y-1">
+                      {Object.entries(PERSONA_DATA).map(([id, p]) => (
+                        <button key={id} onClick={() => { switchPersona(id); setShowPersonaDropdown(false); }}
+                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all text-left ${activePersona === id ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'}`}>
+                          <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm">
+                            <ImageWithFallback src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-bold truncate ${activePersona === id ? 'text-white' : 'text-slate-900'}`}>{p.name}</p>
+                            <p className={`text-[10px] font-medium truncate ${activePersona === id ? 'text-white/60' : 'text-slate-400'}`}>{p.role}</p>
+                          </div>
+                          {activePersona === id && <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" onClick={() => { if (confirm('Clear chat history?')) setMessages([]); }}>
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear Chat
+              </Button>
+            )}
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-bold" onClick={() => setShowKnowledgeBase(!showKnowledgeBase)}>
               <Library className="w-3.5 h-3.5" />
               Knowledge Base
@@ -380,86 +402,93 @@ export function InfluencerChat({ onNavigate, initialPersonaId = 'chris-do', data
           {/* ── Chat Messages ───────────────────────────────────────── */}
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex-1 overflow-hidden relative">
-              <div className="absolute inset-0 p-6 overflow-y-auto space-y-5" ref={scrollRef}>
-                {messages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto space-y-6">
-                    <div className="w-24 h-24 rounded-full overflow-hidden shadow-xl ring-4 ring-white">
-                      <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 overflow-y-auto" ref={scrollRef}>
+                <div className="max-w-4xl mx-auto p-6 space-y-5">
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center max-w-md mx-auto space-y-6">
+                      <div className="w-24 h-24 rounded-full overflow-hidden shadow-xl ring-4 ring-white">
+                        <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="space-y-2">
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Chat with {persona.name}</h2>
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">{persona.bio}</p>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2.5 w-full max-w-lg mx-auto mt-3 mb-4">
+                        {persona.starters.map((q, i) => (
+                          <Button key={i} variant="outline" size="sm" onClick={() => setInput(q)} className="h-9 gap-1.5 text-xs font-bold rounded-lg border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 hover:text-slate-800 shadow-sm transition-all px-4">
+                            <MessageCircle className="w-3.5 h-3.5 text-slate-400" />
+                            {q}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                        <ImagePlus className="w-3.5 h-3.5" /> Paste or attach a screenshot for design feedback
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <h2 className="text-xl font-black text-slate-900 tracking-tight">Chat with {persona.name}</h2>
-                      <p className="text-sm text-slate-500 font-medium leading-relaxed">{persona.bio}</p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 w-full max-w-sm">
-                      {persona.starters.map((q, i) => (
-                        <button key={i} onClick={() => setInput(q)} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm transition-all tracking-wide text-left">
-                          "{q}"
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-                      <ImagePlus className="w-3.5 h-3.5" /> Paste or attach a screenshot for design feedback
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {messages.map((msg, i) => (
-                  <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                    <div className={`w-8 h-8 rounded-full overflow-hidden shrink-0 shadow-sm ring-2 ring-white ${msg.role === 'user' ? 'bg-blue-100 flex items-center justify-center' : ''}`}>
-                      {msg.role === 'user'
-                        ? <Zap className="w-4 h-4 text-blue-600" />
-                        : <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
-                      }
+                  {messages.map((msg, i) => (
+                    <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                      <div className={`w-8 h-8 rounded-full overflow-hidden shrink-0 shadow-sm ring-2 ring-white ${msg.role === 'user' ? 'bg-slate-100 flex items-center justify-center' : ''}`}>
+                        {msg.role === 'user'
+                          ? (session?.user?.user_metadata?.avatar_url
+                            ? <img src={session.user.user_metadata.avatar_url} alt="You" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            : <User className="w-4 h-4 text-slate-500" />)
+                          : <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                        }
+                      </div>
+                      <div className="max-w-[75%] space-y-2">
+                        {msg.image && (
+                          <div className="rounded-lg overflow-hidden border border-slate-200 shadow-sm w-12 h-12 shrink-0">
+                            <img src={msg.image} alt="Uploaded design" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        {msg.content && (
+                          <div className={`p-4 rounded-3xl max-w-[85%] shadow-sm overflow-hidden ${msg.role === 'user'
+                            ? 'bg-slate-100 text-slate-800 rounded-tr-sm border border-slate-200'
+                            : 'bg-white border border-slate-100 rounded-tl-sm'
+                            }`}>
+                            {msg.role === 'user' ? (
+                              msg.content as string
+                            ) : (
+                              <div className="prose prose-sm prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-50 prose-pre:border prose-pre:text-slate-800">
+                                <ReactMarkdown>
+                                  {msg.content as string}
+                                </ReactMarkdown>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="max-w-[75%] space-y-2">
-                      {msg.image && (
-                        <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-[300px]">
-                          <img src={msg.image} alt="Uploaded design" className="w-full h-auto" />
-                        </div>
-                      )}
-                      {msg.content && (
-                        <div className={`p-4 rounded-3xl max-w-[85%] shadow-sm overflow-hidden ${msg.role === 'user'
-                          ? 'bg-blue-50 text-slate-800 rounded-tr-sm border border-blue-100'
-                          : 'bg-white border border-slate-100 rounded-tl-sm'
-                          }`}>
-                          {msg.role === 'user' ? (
-                            msg.content as string
-                          ) : (
-                            <div className="prose prose-sm prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-50 prose-pre:border prose-pre:text-slate-800">
-                              <ReactMarkdown>
-                                {msg.content as string}
-                              </ReactMarkdown>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ))}
 
-                {isLoading && (
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm">
-                      <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                  {isLoading && (
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm">
+                        <ImageWithFallback src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-sm shadow-sm flex gap-1.5 items-center">
+                        <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
                     </div>
-                    <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-sm shadow-sm flex gap-1.5 items-center">
-                      <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Attached Image Preview */}
             {attachedImage && (
               <div className="px-6 pt-3 bg-white border-t border-slate-100">
-                <div className="relative inline-block">
-                  <img src={attachedImage} alt="Attached" className="h-20 rounded-lg border border-slate-200 shadow-sm" />
-                  <button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600">
-                    <X className="w-3 h-3" />
-                  </button>
+                <div className="max-w-4xl mx-auto">
+                  <div className="relative inline-block">
+                    <img src={attachedImage} alt="Attached" className="h-14 rounded-lg border border-slate-200 shadow-sm" />
+                    <button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

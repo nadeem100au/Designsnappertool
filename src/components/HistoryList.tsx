@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUserAudits } from '../utils/supabase/database';
+import { getUserAudits, getAuditById } from '../utils/supabase/database';
 import { Loader2, Calendar, FileImage, ChevronRight, AlertCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Card } from './ui/card';
@@ -14,6 +14,7 @@ interface HistoryListProps {
 export function HistoryList({ userId, onSelectAudit, variant = 'grid' }: HistoryListProps) {
     const [audits, setAudits] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingFullAudit, setLoadingFullAudit] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -33,6 +34,19 @@ export function HistoryList({ userId, onSelectAudit, variant = 'grid' }: History
             fetchHistory();
         }
     }, [userId]);
+
+    const handleAuditClick = async (audit: any) => {
+        try {
+            setLoadingFullAudit(true);
+            const fullAudit = await getAuditById(audit.id);
+            onSelectAudit(fullAudit);
+        } catch (err) {
+            console.error("Failed to fetch full audit details", err);
+            // Optionally, show a toast or error message here
+        } finally {
+            setLoadingFullAudit(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -77,7 +91,7 @@ export function HistoryList({ userId, onSelectAudit, variant = 'grid' }: History
                 {audits.map((audit) => (
                     <div
                         key={audit.id}
-                        onClick={() => onSelectAudit(audit)}
+                        onClick={() => handleAuditClick(audit)}
                         className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors group border border-transparent hover:border-slate-200"
                     >
                         <div className="w-20 h-14 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100 relative">
@@ -108,12 +122,17 @@ export function HistoryList({ userId, onSelectAudit, variant = 'grid' }: History
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+            {loadingFullAudit && (
+                <div className="absolute inset-0 z-50 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+            )}
             {audits.map((audit) => (
                 <Card
                     key={audit.id}
                     className="group overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-slate-100 bg-white"
-                    onClick={() => onSelectAudit(audit)}
+                    onClick={() => handleAuditClick(audit)}
                 >
                     <div className="aspect-[4/3] bg-slate-100 relative overflow-hidden">
                         {audit.thumbnail_url ? (
