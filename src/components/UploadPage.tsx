@@ -766,7 +766,10 @@ export function UploadPage({ onNavigate, data, session, onSignOut, credits: cred
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center text-white">
                               <Crown className="w-4 h-4" />
                             </div>
-                            <span className="font-bold text-slate-900">Influencer Review</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900">Influencer Review</span>
+                              <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider">Beta</span>
+                            </div>
                           </div>
                           <p className="text-xs text-slate-500 leading-relaxed pl-11">
                             Technical audit + strategic feedback from an AI persona.
@@ -779,9 +782,6 @@ export function UploadPage({ onNavigate, data, session, onSignOut, credits: cred
                       <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">3. Choose Your Expert</h3>
-                          <Button variant="ghost" size="sm" className="text-xs font-bold text-slate-500 hover:text-primary" onClick={() => onNavigate('influencer-library', { image: uploadedImages[0], images: uploadedImages, mode: analysisMode, context: analysisContext, selectedPersona })}>
-                            View All
-                          </Button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           {[

@@ -138,6 +138,41 @@ app.post('*/verify', async (c) => {
             console.error('[Verify] Plan upgrade error:', planError.message);
         } else {
             console.log(`User ${user.email} upgraded to Pro (${PRO_CREDITS} credits, ₹${PRO_MONEY_INR})`);
+            
+            // 5a. Trigger Welcome Email (Async)
+            const emailTemplate = `
+                <div style="font-family: sans-serif; background-color: #f7fafc; padding: 40px; text-align: center;">
+                    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                        <img src="https://via.placeholder.com/600x300?text=Welcome+to+Design+Snapper+Pro" alt="Welcome to Design Snapper Pro" style="width: 100%; height: auto; display: block;" />
+                        <div style="padding: 30px;">
+                            <h1 style="color: #1a202c; font-size: 24px; margin-bottom: 20px;">Welcome to the Elite, ${user.email}!</h1>
+                            <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
+                                Your account has been successfully upgraded to <strong>Design Snapper Pro</strong>. 
+                                You now have <strong>${PRO_CREDITS} new credits</strong> ready for your next design audit.
+                            </p>
+                            <a href="${Deno.env.get('APP_URL') ?? 'https://designsnapper.com'}/dashboard" style="background-color: #3182ce; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                                Start Auditing Now
+                            </a>
+                        </div>
+                        <div style="background-color: #edf2f7; padding: 20px; font-size: 12px; color: #718096;">
+                            © 2026 Design Snapper Inc. All rights reserved.
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                    to: user.email,
+                    subject: 'Welcome to Design Snapper Pro! 🚀',
+                    html: emailTemplate,
+                }),
+            }).catch(e => console.error('[Verify] Email trigger error:', e));
         }
 
         // 6. Ensure profile exists
