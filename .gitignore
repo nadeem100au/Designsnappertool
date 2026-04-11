@@ -26,3 +26,4 @@ yarn-error.log*
 .vercel
 
 verify_anthropic.py
+.env*.local
